@@ -1,4 +1,6 @@
 import { ArrowRight, Code, Target, Trophy } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const STEPS = [
   { n: "01", text: "Pick a mode", icon: Target, tone: "bg-lime-300/10 text-lime-300" },
@@ -7,6 +9,18 @@ const STEPS = [
 ];
 
 export default function HowItWorks({ onSignup }) {
+  const { user, openSignup } = useAuth();
+  const navigate = useNavigate();
+
+  const handleAction = () => {
+    if (user) {
+      navigate("/profile");
+    } else if (onSignup) {
+      onSignup();
+    } else {
+      openSignup();
+    }
+  };
   return (
     <section id="how-it-works" data-cursor-section="games" className="border-y border-white/[.06] bg-[#0e1411] py-16 sm:py-20">
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
@@ -40,7 +54,7 @@ export default function HowItWorks({ onSignup }) {
           </div>
           <button
             data-magnetic
-            onClick={onSignup}
+            onClick={handleAction}
             className="shrink-0 rounded-xl bg-lime-300 px-5 py-3 text-sm font-bold text-[#101512] transition hover:bg-lime-200"
           >
             Start playing <ArrowRight size={16} className="ml-1 inline" />

@@ -1,6 +1,20 @@
 import { ArrowRight, Flame, MessageCircle, Play, Sparkles, Swords } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function Hero({ battleStarted, onSignup, onToggleBattle }) {
+  const { user, openSignup } = useAuth();
+  const navigate = useNavigate();
+
+  const handleAction = () => {
+    if (user) {
+      navigate("/profile");
+    } else if (onSignup) {
+      onSignup();
+    } else {
+      openSignup();
+    }
+  };
   return (
     <section
       id="home"
@@ -12,7 +26,7 @@ export default function Hero({ battleStarted, onSignup, onToggleBattle }) {
           <span className="h-1.5 w-1.5 rounded-full bg-lime-300 shadow-[0_0_10px_#bef264]" />
           The coding arena for your next level
         </div>
-        <h1 className="text-[clamp(3.25rem,7.3vw,6rem)] font-semibold leading-[.95] tracking-[-.07em] text-white">
+        <h1 className="text-[clamp(2.5rem,7.3vw,6rem)] font-semibold leading-[.95] tracking-[-.07em] text-white">
           Get better
           <br />
           at code.{" "}
@@ -26,10 +40,10 @@ export default function Hero({ battleStarted, onSignup, onToggleBattle }) {
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <button
             data-magnetic
-            onClick={onSignup}
+            onClick={handleAction}
             className="group rounded-xl bg-lime-300 px-6 py-3.5 text-sm font-bold text-[#101512] transition hover:-translate-y-0.5 hover:bg-lime-200"
           >
-            Play your first Code {" "}
+            Play your first duel{" "}
             <ArrowRight size={17} className="ml-2 inline transition group-hover:translate-x-1" />
           </button>
           <a
@@ -73,7 +87,7 @@ export default function Hero({ battleStarted, onSignup, onToggleBattle }) {
                   <Swords size={18} />
                 </div>
                 <div>
-                  <div className="text-xs font-semibold text-white">Ranked Code </div>
+                  <div className="text-xs font-semibold text-white">Ranked Duel</div>
                   <div className="mt-0.5 text-[10px] text-slate-500">JavaScript · Round 01</div>
                 </div>
               </div>

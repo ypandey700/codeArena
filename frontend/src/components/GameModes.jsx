@@ -1,10 +1,24 @@
 import { ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { GAME_MODES, MODE_COLORS } from "../data/gameModes";
 import ModeIcon from "./ModeIcon";
+import { useAuth } from "../context/AuthContext";
 
 export default function GameModes({ activeMode, onSelectMode, onSignup }) {
+  const { user, openSignup } = useAuth();
+  const navigate = useNavigate();
   const mode = GAME_MODES[activeMode];
   const colors = MODE_COLORS[mode.color];
+
+  const handleAction = () => {
+    if (user) {
+      navigate("/profile");
+    } else if (onSignup) {
+      onSignup();
+    } else {
+      openSignup();
+    }
+  };
 
   return (
     <section
@@ -56,7 +70,7 @@ export default function GameModes({ activeMode, onSelectMode, onSignup }) {
             <h3 className="text-xl font-semibold text-white">{mode.name}</h3>
           </div>
           <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">{mode.detail}</p>
-          <button onClick={onSignup} className="mt-5 text-xs font-semibold text-lime-300 transition hover:text-lime-200">
+          <button onClick={handleAction} className="mt-5 text-xs font-semibold text-lime-300 transition hover:text-lime-200">
             Try this mode <ArrowRight size={14} className="ml-1 inline" />
           </button>
         </div>

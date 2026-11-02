@@ -203,19 +203,19 @@ body {
   }
 }
 
-html.has-Code -cursor,
-html.has-Code -cursor * {
+html.has-arena-cursor,
+html.has-arena-cursor * {
   cursor: none !important;
 }
 
-html.has-Code -cursor input,
-html.has-Code -cursor textarea,
-html.has-Code -cursor select,
-html.has-Code -cursor [contenteditable="true"] {
+html.has-arena-cursor input,
+html.has-arena-cursor textarea,
+html.has-arena-cursor select,
+html.has-arena-cursor [contenteditable="true"] {
   cursor: text !important;
 }
 
-.Code -cursor {
+.arena-cursor {
   position: fixed;
   inset: 0 auto auto 0;
   z-index: 100;
@@ -225,13 +225,13 @@ html.has-Code -cursor [contenteditable="true"] {
   will-change: transform;
 }
 
-.Code -cursor[data-visible="true"] {
+.arena-cursor[data-visible="true"] {
   opacity: 1;
 }
 
-.Code -cursor__dot,
-.Code -cursor__ring,
-.Code -cursor__trail {
+.arena-cursor__dot,
+.arena-cursor__ring,
+.arena-cursor__trail {
   position: absolute;
   top: 0;
   left: 0;
@@ -242,14 +242,14 @@ html.has-Code -cursor [contenteditable="true"] {
   will-change: transform;
 }
 
-.Code -cursor__dot {
+.arena-cursor__dot {
   width: 5px;
   height: 5px;
   background: #d9f99d;
   box-shadow: 0 0 12px 3px rgb(190 242 100 / 0.7);
 }
 
-.Code -cursor__ring {
+.arena-cursor__ring {
   width: 34px;
   height: 34px;
   border: 1px solid rgb(190 242 100 / 0.62);
@@ -257,14 +257,14 @@ html.has-Code -cursor [contenteditable="true"] {
   transition: width 220ms ease, height 220ms ease, border-radius 220ms ease, border-color 220ms ease, background 220ms ease;
 }
 
-.Code -cursor__trail {
+.arena-cursor__trail {
   width: 17px;
   height: 17px;
   background: rgb(190 242 100 / 0.13);
   filter: blur(8px);
 }
 
-.Code -cursor__crosshair {
+.arena-cursor__crosshair {
   position: absolute;
   top: 0;
   left: 0;
@@ -275,8 +275,8 @@ html.has-Code -cursor [contenteditable="true"] {
   transition: opacity 180ms ease;
 }
 
-.Code -cursor__crosshair::before,
-.Code -cursor__crosshair::after {
+.arena-cursor__crosshair::before,
+.arena-cursor__crosshair::after {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -287,10 +287,10 @@ html.has-Code -cursor [contenteditable="true"] {
   translate: -50% -50%;
 }
 
-.Code -cursor__crosshair::before { width: 1px; height: 28px; }
-.Code -cursor__crosshair::after { width: 28px; height: 1px; }
+.arena-cursor__crosshair::before { width: 1px; height: 28px; }
+.arena-cursor__crosshair::after { width: 28px; height: 1px; }
 
-.Code -cursor[data-section="features"] .Code -cursor__ring {
+.arena-cursor[data-section="features"] .arena-cursor__ring {
   width: 30px;
   height: 30px;
   border-radius: 9px;
@@ -299,17 +299,17 @@ html.has-Code -cursor [contenteditable="true"] {
   rotate: 45deg;
 }
 
-.Code -cursor[data-section="games"] .Code -cursor__ring {
+.arena-cursor[data-section="games"] .arena-cursor__ring {
   width: 38px;
   height: 38px;
   border-color: rgb(190 242 100 / 0.3);
 }
 
-.Code -cursor[data-section="games"] .Code -cursor__crosshair {
+.arena-cursor[data-section="games"] .arena-cursor__crosshair {
   opacity: 1;
 }
 
-.Code -cursor[data-section="cta"] .Code -cursor__ring {
+.arena-cursor[data-section="cta"] .arena-cursor__ring {
   width: 44px;
   height: 44px;
   border-color: rgb(190 242 100 / 0.8);
@@ -317,14 +317,14 @@ html.has-Code -cursor [contenteditable="true"] {
   animation: cursor-pulse 1.8s ease-in-out infinite;
 }
 
-.Code -cursor[data-hover="control"] .Code -cursor__ring {
+.arena-cursor[data-hover="control"] .arena-cursor__ring {
   width: 54px;
   height: 54px;
   border-color: rgb(190 242 100 / 0.9);
   background: rgb(190 242 100 / 0.08);
 }
 
-.Code -cursor[data-hover="card"] .Code -cursor__ring {
+.arena-cursor[data-hover="card"] .arena-cursor__ring {
   width: 48px;
   height: 48px;
   border-radius: 13px;
@@ -332,8 +332,8 @@ html.has-Code -cursor [contenteditable="true"] {
   background: rgb(125 211 252 / 0.06);
 }
 
-.Code -cursor[data-hover="text"] .Code -cursor__ring,
-.Code -cursor[data-hover="text"] .Code -cursor__trail {
+.arena-cursor[data-hover="text"] .arena-cursor__ring,
+.arena-cursor[data-hover="text"] .arena-cursor__trail {
   opacity: 0;
 }
 
@@ -357,12 +357,12 @@ html.has-Code -cursor [contenteditable="true"] {
 }
 
 @media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
-  html.has-Code -cursor,
-  html.has-Code -cursor * {
+  html.has-arena-cursor,
+  html.has-arena-cursor * {
     cursor: auto !important;
   }
 
-  .Code -cursor {
+  .arena-cursor {
     display: none;
   }
 }
