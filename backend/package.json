@@ -5,7 +5,9 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "seed": "node seeds/seedProblems.js",
+    "pull-images": "docker pull python:3.12-slim && docker pull node:20-alpine && docker pull gcc:13 && docker pull eclipse-temurin:21-jdk"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

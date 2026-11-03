@@ -1,0 +1,8 @@
+{
+  "name": "codingarena-root",
+  "private": true,
+  "scripts": {
+    "seed": "npm --prefix backend run seed",
+    "pull-images": "npm --prefix backend run pull-images"
+  }
+}
