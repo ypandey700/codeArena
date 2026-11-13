@@ -1,8 +1,8 @@
 export const MODE_COLORS = {
-  lime: "text-lime-300 bg-lime-300/10 border-lime-300/20",
-  orange: "text-orange-300 bg-orange-300/10 border-orange-300/20",
-  blue: "text-sky-300 bg-sky-300/10 border-sky-300/20",
-  purple: "text-violet-300 bg-violet-300/10 border-violet-300/20",
+  lime: "text-primary bg-primary/10 border-primary/20",
+  orange: "text-secondary bg-secondary/10 border-secondary/20",
+  blue: "text-on-surface-variant bg-on-surface-variant/10 border-on-surface-variant/20",
+  purple: "text-on-surface-variant bg-on-surface-variant/10 border-on-surface-variant/20",
 };
 
 export const GAME_MODES = [

@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowUpRight, ChevronDown, LogOut, Menu, Swords, User, X } from "lucide-react";
+import { ArrowUpRight, Bell, Code2, LogOut, Menu, Swords, User, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
-export default function Navbar() {
+export default function Navbar({ onQuickDuel, matchFound = false }) {
   const { user, openLogin, openSignup, logout } = useAuth();
   const [mobileNav, setMobileNav] = useState(false);
   const [userDropdown, setUserDropdown] = useState(false);
   const dropdownRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const isBattleModesPage = location.pathname === "/battle-modes";
+  const isProfilePage = location.pathname === "/profile" || location.pathname.startsWith("/u/");
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -42,11 +44,22 @@ export default function Navbar() {
   const handleLogoClick = (e) => {
     e.preventDefault();
     setMobileNav(false);
+    if (user) {
+      if (location.pathname !== "/dashboard") navigate("/dashboard");
+      else window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     if (location.pathname !== "/") {
       navigate("/");
     } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  };
+
+  const handleArenaClick = (e) => {
+    e.preventDefault();
+    setMobileNav(false);
+    navigate("/battle-modes");
   };
 
   const handlePlayClick = () => {
@@ -56,6 +69,12 @@ export default function Navbar() {
     } else {
       openSignup();
     }
+  };
+
+  const handleQuickDuel = () => {
+    setMobileNav(false);
+    if (user) onQuickDuel?.();
+    else openLogin();
   };
 
   const handleLoginClick = () => {
@@ -70,63 +89,103 @@ export default function Navbar() {
     navigate("/");
   };
 
+  if (user && !matchFound) {
+    return (
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[.08] bg-[#0d0f11]/95 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex items-center gap-5"><Link to="/dashboard" className="flex items-center gap-2.5"><span className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-[#fddf49]/35 bg-[#fddf49]/10 text-[#fddf49]"><Code2 size={19} /><span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-[#0d0f11] bg-emerald-400" /></span><span><b className="block text-sm tracking-wide text-white">CODE ARENA</b><span className="block text-[10px] text-emerald-400">Online</span></span></Link><nav aria-label="Account navigation" className="hidden items-center gap-1 md:flex">{[{ path: "/dashboard", label: "Command Deck" }, { path: "/battle-modes", label: "Battle Modes" }].map((item) => <Link key={item.path} to={item.path} aria-current={location.pathname === item.path ? "page" : undefined} className={`rounded-md border-b-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide ${location.pathname === item.path ? "border-[#fddf49] bg-white/[.06] text-[#fddf49]" : "border-transparent text-[#9298a5] hover:bg-white/5 hover:text-white"}`}>{item.label}</Link>)}</nav></div>
+          <button onClick={handleQuickDuel} className="flex shrink-0 items-center gap-2 rounded-lg bg-[#fddf49] px-3 py-2 text-[11px] font-bold text-[#211c08] shadow-[0_0_18px_#fddf4920] hover:bg-[#ffe76e]"><Swords size={14} /><span className="hidden sm:inline">1V1 QUICK DUEL</span><span className="sm:hidden">DUEL</span></button>
+          <div className="flex items-center gap-3"><div className="hidden rounded-md border border-white/10 bg-[#1f2328] px-3 py-1.5 lg:block"><span className="block text-[10px] font-semibold text-[#fddf49]">ARENA RATING</span><span className="text-[10px] text-[#9298a5]">{Number(user.rating ?? 1200).toLocaleString()} RR</span></div><div className="relative" ref={dropdownRef}><button onClick={() => setUserDropdown((open) => !open)} aria-label="Open account menu" aria-expanded={userDropdown} className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-[#fddf49]/70 bg-[#1f2328] text-[#fddf49]">{user.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : <User size={17} />}</span><span className="hidden text-left sm:block"><b className="block max-w-28 truncate text-xs text-white">{user.username}</b><span className="text-[10px] text-emerald-400">Online</span></span></button>{userDropdown && <nav aria-label="Account menu" className="absolute right-0 top-full mt-3 w-48 rounded-lg border border-white/10 bg-[#16191c] p-2 shadow-xl"><Link to="/dashboard" className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">Command Deck</Link><Link to="/battle-modes" className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">Battle Modes</Link><Link to={`/u/${user.username}`} className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">My profile</Link><button onClick={handleLogout} className="flex w-full items-center gap-2 rounded px-3 py-2 text-xs text-[#e29a9a] hover:bg-white/5"><LogOut size={13} />Log out</button></nav>}</div></div>
+        </div>
+      </header>
+    );
+  }
+
+  if (!user && location.pathname === "/" && !matchFound) {
+    return (
+      <header className="reference-navbar fixed inset-x-0 top-0 z-50 border-b border-white/[.08] bg-[#080a0e]/95 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-6 px-5 sm:px-8 lg:px-10">
+          <a href="#home" onClick={handleLogoClick} aria-label="Code Arena home" className="flex shrink-0 items-center gap-2.5"><span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#f1efec] text-[#151517]"><Code2 size={20} strokeWidth={2} /></span><span className="text-base font-semibold tracking-tight text-[#f1efec]">CODE <span className="text-[#fddf49]">ARENA</span></span></a>
+          <nav aria-label="Main navigation" className="ml-auto hidden items-center gap-7 md:flex">
+            <a href="#features" onClick={(event) => handleScrollTo(event, "#features")} className="text-[13px] text-[#b2afb7] transition hover:text-white">Overview</a>
+            <a href="#modes" onClick={(event) => handleScrollTo(event, "#modes")} className="text-[13px] text-[#b2afb7] transition hover:text-white">Protocols</a>
+            <button onClick={handleLoginClick} className="text-[13px] text-[#b2afb7] transition hover:text-white">Log in</button>
+            <button onClick={handlePlayClick} className="h-9 rounded-md bg-[#ff633b] px-4 text-[13px] font-semibold text-[#16110e] transition hover:bg-[#ff805e]">Find 1v1 Match</button>
+          </nav>
+          <button onClick={() => setMobileNav((open) => !open)} aria-label="Toggle navigation" aria-expanded={mobileNav} aria-controls="landing-mobile-nav" className="rounded-md p-2 text-[#d9d6de] md:hidden">{mobileNav ? <X size={21} /> : <Menu size={21} />}</button>
+        </div>
+        {mobileNav && <nav id="landing-mobile-nav" aria-label="Mobile navigation" className="flex flex-col gap-1 border-t border-white/10 bg-[#18181c] px-5 py-4 md:hidden"><a href="#features" onClick={(event) => handleScrollTo(event, "#features")} className="rounded-md px-3 py-2.5 text-sm text-[#c3bfc9] hover:bg-white/5">Overview</a><a href="#modes" onClick={(event) => handleScrollTo(event, "#modes")} className="rounded-md px-3 py-2.5 text-sm text-[#c3bfc9] hover:bg-white/5">Protocols</a><button onClick={handleLoginClick} className="rounded-md px-3 py-2.5 text-left text-sm text-[#c3bfc9] hover:bg-white/5">Log in</button><button onClick={handlePlayClick} className="mt-2 rounded-md bg-[#ff633b] px-3 py-2.5 text-sm font-semibold text-[#16110e] hover:bg-[#ff805e]">Find 1v1 Match</button></nav>}
+      </header>
+    );
+  }
+
   return (
-    <header className="arena-navbar relative z-30 mx-auto mt-3 flex w-[calc(100%-1.5rem)] max-w-7xl items-center justify-between rounded-2xl border border-transparent px-4 py-3 backdrop-blur-xl sm:mt-4 sm:px-6 lg:mt-5 lg:px-8">
+    <header className={`arena-navbar fixed inset-x-0 z-50 flex items-center justify-between px-4 sm:px-6 lg:px-8 ${isBattleModesPage ? "arena-navbar-codechef top-0 h-16" : user && !matchFound ? "arena-navbar-auth top-1 mx-1 h-14 rounded-md border border-white/10 shadow-sm" : matchFound ? "top-0 h-20 border-b border-white/[.06]" : "top-0 h-16"}`}>
       <a
         href="#home"
         onClick={handleLogoClick}
-        className="flex items-center gap-2.5"
+        className="flex items-center gap-2"
         aria-label="Code Arena home"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-lime-300 text-[#101512]">
-          <Swords size={21} strokeWidth={2.4} />
-        </span>
-        <span className="text-[19px] font-bold tracking-tight text-white">
-          Code <span className="text-lime-300">Arena</span>
-        </span>
+        {user ? <span className={`flex h-5 w-5 items-center justify-center rounded-sm ${matchFound ? "bg-[#c5a17a]" : "bg-primary"} text-[#261f18]`}>{matchFound ? <Swords size={15} /> : <Code2 size={14} />}</span> : <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
+        <span className="text-xs font-bold tracking-[.12em] text-on-surface">CODE <span className={user ? (matchFound ? "text-[#c5a17a]" : "text-primary") : ""}>ARENA</span></span>
       </a>
 
       <nav
         className={`${
           mobileNav
-            ? "absolute left-4 right-4 top-[68px] flex flex-col rounded-2xl border border-white/10 bg-[#101816] p-4 shadow-xl"
+            ? "absolute left-4 right-4 top-[68px] flex flex-col rounded-md border border-white/10 bg-[#261f18] p-4 shadow-xl"
             : "hidden"
-        } items-center gap-7 md:static md:flex md:flex-row md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
+        } items-center gap-7 lg:static lg:flex lg:flex-row lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none`}
       >
-        <a
-          onClick={(e) => handleScrollTo(e, "#modes")}
-          className="cursor-pointer text-sm text-slate-400 transition hover:text-white"
-          href="#modes"
-        >
-          Explore modes
-        </a>
-        <a
-          onClick={(e) => handleScrollTo(e, "#how-it-works")}
-          className="cursor-pointer text-sm text-slate-400 transition hover:text-white"
-          href="#how-it-works"
-        >
-          How it works
-        </a>
+        {matchFound ? (
+          <>
+            <a onClick={(e) => handleScrollTo(e, "#features")} className="cursor-pointer text-sm font-semibold text-on-surface-muted transition hover:text-primary" href="#features">Features</a>
+            <a onClick={(e) => handleScrollTo(e, "#modes")} className="cursor-pointer text-sm font-semibold text-on-surface-muted transition hover:text-primary" href="#modes">Battle Modes</a>
+            <a onClick={(e) => handleScrollTo(e, "#live-preview")} className="cursor-pointer rounded-sm bg-[#2a2b2e] px-3 py-2 text-sm font-semibold text-[#c5a17a]" href="#live-preview">Esports Arena</a>
+            <a onClick={(e) => handleScrollTo(e, "#stats")} className="cursor-pointer text-sm font-semibold text-on-surface-muted transition hover:text-primary" href="#stats">Leaderboards</a>
+            <a onClick={(e) => handleScrollTo(e, "#features")} className="cursor-pointer text-sm font-semibold text-on-surface-muted transition hover:text-primary" href="#features">Documentation</a>
+          </>
+        ) : user ? (
+          isBattleModesPage || isProfilePage ? (
+            null
+          ) : (
+            <>
+              <a onClick={handleArenaClick} className="cursor-pointer rounded-sm px-3 py-2 text-xs font-semibold text-on-surface-muted transition hover:bg-[#2a2b2e] hover:text-white" href="/battle-modes">Arena</a>
+              <a onClick={(e) => handleScrollTo(e, "#modes")} className="cursor-pointer text-xs font-semibold text-on-surface-muted transition hover:text-primary" href="#modes">Battle Modes</a>
+              <a onClick={(e) => handleScrollTo(e, "#live-preview")} className="cursor-pointer text-xs font-semibold text-on-surface-muted transition hover:text-primary" href="#live-preview">Esports Arena</a>
+              <a onClick={(e) => handleScrollTo(e, "#stats")} className="cursor-pointer text-xs font-semibold text-on-surface-muted transition hover:text-primary" href="#stats">Leaderboards</a>
+            </>
+          )
+        ) : (
+          <>
+            <a onClick={(e) => handleScrollTo(e, "#features")} className="cursor-pointer text-sm font-medium text-primary transition hover:text-on-surface" href="#features">Features</a>
+            <a onClick={(e) => handleScrollTo(e, "#modes")} className="cursor-pointer text-sm font-medium text-on-surface-muted transition hover:text-primary" href="#modes">Battle Modes</a>
+            <a onClick={(e) => handleScrollTo(e, "#live-preview")} className="cursor-pointer text-sm font-medium text-on-surface-muted transition hover:text-primary" href="#live-preview">Esports Arena</a>
+            <a onClick={(e) => handleScrollTo(e, "#stats")} className="cursor-pointer text-sm font-medium text-on-surface-muted transition hover:text-primary" href="#stats">Leaderboards</a>
+            <a onClick={(e) => handleScrollTo(e, "#features")} className="cursor-pointer text-sm font-medium text-on-surface-muted transition hover:text-primary" href="#features">Documentation</a>
+          </>
+        )}
 
-        <div className="flex w-full flex-col gap-3 pt-2 md:hidden">
+        <div className="flex w-full flex-col gap-3 pt-2 lg:hidden">
           {user ? (
-            <div className="flex flex-col gap-2 rounded-xl border border-white/[.08] bg-[#0b100f] p-3">
+            <div className="flex flex-col gap-2 rounded-xl border border-white/[.08] bg-[#18191b] p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   {user.avatar ? (
                     <img
                       src={user.avatar}
                       alt={user.username}
-                      className="h-8 w-8 rounded-full border border-lime-300/40 object-cover"
+                      className="h-8 w-8 rounded-full border border-primary/40 object-cover"
                     />
                   ) : (
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-lime-300/20 text-xs font-bold uppercase text-lime-300">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold uppercase text-primary">
                       {user.username.charAt(0)}
                     </span>
                   )}
-                  <span className="text-sm font-semibold text-white">{user.username}</span>
+                  <span className="text-sm font-semibold text-on-surface">{user.username}</span>
                 </div>
-                <span className="rounded border border-lime-300/20 bg-lime-300/10 px-2 py-0.5 font-mono text-xs text-lime-300">
+                <span className="rounded border border-primary/20 bg-primary/10 px-2 py-0.5 font-mono text-xs text-primary">
                   {user.rating ?? 1200}
                 </span>
               </div>
@@ -134,13 +193,13 @@ export default function Navbar() {
                 <Link
                   to={`/u/${user.username}`}
                   onClick={() => setMobileNav(false)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[.04] py-2 text-xs font-medium text-slate-200"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[.04] py-2 text-xs font-medium text-on-surface-muted"
                 >
                   <User size={14} /> Profile
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 py-2 text-xs font-medium text-rose-300"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-on-surface-muted/20 bg-on-surface-muted/10 py-2 text-xs font-medium text-on-surface-muted"
                 >
                   <LogOut size={14} /> Log out
                 </button>
@@ -151,87 +210,69 @@ export default function Navbar() {
               <button
                 data-magnetic
                 onClick={handleLoginClick}
-                className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-sm"
+                className="flex-1 rounded-full border border-white/10 px-4 py-2.5 text-sm"
               >
                 Log in
               </button>
               <button
                 onClick={handlePlayClick}
-                className="flex-1 rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-bold text-[#101512]"
+                className="flex-1 rounded-full bg-primary px-4 py-2.5 text-sm font-bold text-[#261f18]"
               >
-                Let’s play
+                Enter Arena Free
               </button>
             </div>
           )}
+          <button
+            onClick={handleQuickDuel}
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-bold text-[#261f18]"
+          ><Swords size={16} /> 1v1 Quick Duel</button>
         </div>
       </nav>
 
-      <div className="hidden items-center gap-3 md:flex">
-        {user ? (
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setUserDropdown((prev) => !prev)}
-              className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[.03] py-1.5 pl-2 pr-3 transition hover:border-lime-300/40 hover:bg-white/[.06]"
-            >
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.username}
-                  className="h-7 w-7 rounded-full border border-lime-300/40 object-cover"
-                />
-              ) : (
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-lime-300/20 text-xs font-bold uppercase text-lime-300 font-mono">
-                  {user.username.charAt(0)}
-                </span>
-              )}
-              <span className="text-xs font-semibold text-white">{user.username}</span>
-              <span className="rounded border border-lime-300/20 bg-lime-300/10 px-1.5 py-0.5 font-mono text-[11px] text-lime-300">
-                {user.rating ?? 1200}
-              </span>
-              <ChevronDown size={14} className="text-slate-400" />
-            </button>
-
-            {userDropdown && (
-              <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-white/10 bg-[#101816] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,.6)] backdrop-blur-xl">
-                <Link
-                  to={`/u/${user.username}`}
-                  onClick={() => setUserDropdown(false)}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-white/[.06] hover:text-lime-300"
-                >
-                  <User size={14} /> Profile
-                </Link>
-                <div className="my-1 border-t border-white/[.06]" />
-                <button
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-rose-300 transition hover:bg-rose-500/10"
-                >
-                  <LogOut size={14} /> Log out
-                </button>
-              </div>
-            )}
-          </div>
+      <div className="hidden items-center gap-3 lg:flex">
+        {matchFound && user ? (
+          <>
+            <span className="flex items-center gap-2 rounded-md border border-white/[.06] bg-[#191a1c] px-3 py-1.5 text-xs font-bold text-[#c5a17a]"><span className="h-2 w-2 rounded-full bg-[#c5a17a]" />{Number(user.rating ?? 2480).toLocaleString()} MMR</span>
+            <div className="relative" ref={dropdownRef}>
+              <button aria-label="Open account menu" onClick={() => setUserDropdown((prev) => !prev)} className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white text-[#261f18]">{user.avatar ? <img src={user.avatar} alt={user.username} className="h-full w-full object-cover" /> : <User size={19} />}</button>
+              {userDropdown && <div className="absolute right-0 top-full mt-2 w-44 rounded-md border border-white/10 bg-[#18191b] p-1.5 shadow-xl"><Link to={`/u/${user.username}`} onClick={() => setUserDropdown(false)} className="flex items-center gap-2 rounded px-3 py-2 text-xs text-on-surface-muted hover:bg-white/[.06]"><User size={14} />Profile</Link><button onClick={handleLogout} className="flex w-full items-center gap-2 rounded px-3 py-2 text-xs text-on-surface-muted hover:bg-white/[.06]"><LogOut size={14} />Log out</button></div>}
+            </div>
+          </>
+        ) : user ? (
+          <>
+            <span className="flex items-center gap-2 rounded-md border border-white/[.06] bg-[#191a1c] px-3 py-1.5 text-[9px] font-semibold text-[#929196]"><span className="text-[8px]">ARENA RATING</span><b className="text-primary">{Number(user.rating ?? 1200).toLocaleString()} MMR</b></span>
+            <button onClick={handleQuickDuel} className="flex h-9 items-center gap-1.5 rounded-sm bg-primary px-3 text-[10px] font-semibold text-[#261f18] transition hover:bg-[#d3b18c]"><Swords size={14} /> 1v1 QUICK DUEL</button>
+            <button aria-label="Notifications" className="relative rounded-sm bg-[#2a2b2e] p-2 text-[#b6b6b6] hover:text-primary"><Bell size={16} /><span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" /></button>
+            <div className="relative" ref={dropdownRef}>
+              <button aria-label="Open account menu" onClick={() => setUserDropdown((prev) => !prev)} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-primary/60 bg-[#2a2b2e] text-primary transition hover:border-primary">
+                {user.avatar ? <img src={user.avatar} alt={user.username} className="h-full w-full object-cover" /> : <span className="font-mono text-sm font-bold">{user.username.charAt(0).toUpperCase()}</span>}
+              </button>
+              {userDropdown && <div className="absolute right-0 top-full mt-2 w-44 rounded-md border border-white/10 bg-[#18191b] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,.6)]"><Link to={`/u/${user.username}`} onClick={() => setUserDropdown(false)} className="flex w-full items-center gap-2 rounded px-3 py-2 text-xs text-on-surface-muted hover:bg-white/[.06] hover:text-primary"><User size={14} />Profile</Link><button onClick={handleLogout} className="flex w-full items-center gap-2 rounded px-3 py-2 text-xs text-on-surface-muted hover:bg-white/[.06]"><LogOut size={14} />Log out</button></div>}
+            </div>
+          </>
         ) : (
           <>
+            <button onClick={handleQuickDuel} className="flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-bold text-[#261f18] transition hover:bg-[#d3b18c]"><Swords size={16} /> 1v1 Quick Duel</button>
             <button
               data-magnetic
               onClick={handleLoginClick}
-              className="px-4 py-2 text-sm font-medium text-slate-300 transition hover:text-sky-300"
+              className="h-[50px] rounded-full px-4 py-2 text-sm font-medium text-on-surface transition hover:text-primary"
             >
               Log in
             </button>
             <button
               data-magnetic
               onClick={handlePlayClick}
-              className="rounded-xl bg-lime-300 px-5 py-2.5 text-sm font-bold text-[#101512] transition hover:bg-lime-200"
+              className="h-[50px] rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-[#261f18] transition hover:bg-[#d3b18c]"
             >
-              Let’s play <ArrowUpRight className="ml-1 inline" size={16} />
+              Enter Arena Free <ArrowUpRight className="ml-1 inline" size={16} />
             </button>
           </>
         )}
       </div>
 
       <button
-        className="rounded-lg p-2 text-slate-300 md:hidden"
+        className="rounded-lg p-2 text-on-surface-muted lg:hidden"
         aria-label="Toggle navigation"
         aria-expanded={mobileNav}
         onClick={() => setMobileNav((open) => !open)}

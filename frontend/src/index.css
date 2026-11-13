@@ -1,6 +1,39 @@
 @import "@fontsource-variable/inter";
 @import "tailwindcss";
 
+@theme {
+  --color-background: #18191b;
+  --color-surface: #202124;
+  --color-on-surface: #e6e6e8;
+  --color-on-background: #e2e2e2;
+  --color-on-surface-variant: #aaa9ad;
+  --color-on-surface-muted: #929196;
+  --color-on-surface-subtle: #929196;
+  --color-muted: #929196;
+  --color-surface-container-lowest: #18191b;
+  --color-surface-container-low: #202124;
+  --color-surface-container: #202124;
+  --color-surface-container-high: #2a2b2e;
+  --color-surface-container-highest: #343539;
+  --color-surface-bright: #38393a;
+  --color-border: #252525cc;
+  --color-border-strong: #3c3d41;
+  --color-error: #db8080;
+  --color-primary: #c5a17a;
+  --color-primary-container: #c5a17a;
+  --color-primary-fixed: #d3b18c;
+  --color-on-primary: #261f18;
+  --color-on-primary-container: #261f18;
+  --color-secondary: #aaa9ad;
+  --color-success: #94bc9d;
+  --color-info: #8baac8;
+  --color-rank: #b2a0d8;
+  --color-warning: #d7a66e;
+  --font-headline-display: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -8,10 +41,13 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: #0b100f;
-  color: #e2e8f0;
-  font-family: "Inter Variable", Inter, sans-serif;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  background: #18191b;
+  color: #e2e2e2;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-feature-settings: normal;
+  font-size: 13px;
+  line-height: 1.5;
+  color-scheme: dark;
 }
 
 ::-webkit-scrollbar {
@@ -30,10 +66,26 @@ body {
 }
 
 .arena-navbar {
-  background:
-    linear-gradient(110deg, rgb(17 24 22 / 0.96), rgb(14 20 18 / 0.92)) padding-box,
-    linear-gradient(105deg, rgb(190 242 100 / 0.28), rgb(255 255 255 / 0.08) 42%, rgb(125 211 252 / 0.24)) border-box;
-  box-shadow: 0 10px 35px rgb(0 0 0 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  background: #261f18;
+  box-shadow: 0 1px 8px rgb(0 0 0 / 0.04);
+}
+
+.profile-hero-cover {
+  background-color: #18191b;
+  background-image:
+    radial-gradient(ellipse at 38% 12%, rgb(197 161 122 / 0.24), transparent 42%),
+    radial-gradient(ellipse at 78% 48%, rgb(177 141 102 / 0.1), transparent 38%),
+    linear-gradient(128deg, #18191b 8%, #202124 48%, #18191b 86%);
+}
+
+.profile-hero-cover::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background-image: linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+  pointer-events: none;
 }
 
 .arena-perspective {
@@ -43,9 +95,9 @@ body {
 
 .arena-glow {
   background:
-    radial-gradient(ellipse at 28% 32%, rgb(190 242 100 / 0.2), transparent 42%),
-    radial-gradient(ellipse at 76% 34%, rgb(125 211 252 / 0.18), transparent 38%),
-    radial-gradient(ellipse at 54% 76%, rgb(196 181 253 / 0.16), transparent 42%);
+    radial-gradient(ellipse at 28% 32%, rgb(197 161 122 / 0.14), transparent 42%),
+    radial-gradient(ellipse at 76% 34%, rgb(220 220 170 / 0.08), transparent 38%),
+    radial-gradient(ellipse at 54% 76%, rgb(220 220 170 / 0.06), transparent 42%);
 }
 
 .arena-orbit {
@@ -74,12 +126,12 @@ body {
 }
 
 .arena-tilt {
-  transition: transform 500ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 300ms ease;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms ease;
 }
 
 .arena-perspective:hover .arena-tilt {
   transform: rotateY(-3deg) rotateX(1deg) translateZ(12px);
-  border-color: rgb(190 242 100 / 0.3);
+  border-color: rgb(197 161 122 / 0.3);
 }
 
 .arena-chip-top {
@@ -100,13 +152,13 @@ body {
   height: 38px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgb(190 242 100 / 0.38);
-  border-radius: 9px;
-  background: rgb(18 28 22 / 0.92);
-  color: #d9f99d;
+  border: 1px solid rgb(197 161 122 / 0.3);
+  border-radius: 6px;
+  background: rgb(18 18 18 / 0.92);
+  color: #c5a17a;
   font: 700 10px ui-monospace, monospace;
   backface-visibility: hidden;
-  box-shadow: inset 0 0 15px rgb(190 242 100 / 0.08), 0 0 18px rgb(190 242 100 / 0.08);
+  box-shadow: inset 0 0 15px rgb(197 161 122 / 0.05), 0 0 18px rgb(197 161 122 / 0.04);
 }
 
 .cube-face-front { transform: translateZ(19px); }
@@ -245,22 +297,22 @@ html.has-arena-cursor [contenteditable="true"] {
 .arena-cursor__dot {
   width: 5px;
   height: 5px;
-  background: #d9f99d;
-  box-shadow: 0 0 12px 3px rgb(190 242 100 / 0.7);
+  background: #c5a17a;
+  box-shadow: 0 0 12px 3px rgb(197 161 122 / 0.7);
 }
 
 .arena-cursor__ring {
   width: 34px;
   height: 34px;
-  border: 1px solid rgb(190 242 100 / 0.62);
-  background: rgb(190 242 100 / 0.025);
-  transition: width 220ms ease, height 220ms ease, border-radius 220ms ease, border-color 220ms ease, background 220ms ease;
+  border: 1px solid rgb(197 161 122 / 0.62);
+  background: rgb(197 161 122 / 0.025);
+  transition: width 150ms ease, height 150ms ease, border-radius 150ms ease, border-color 150ms ease, background 150ms ease;
 }
 
 .arena-cursor__trail {
   width: 17px;
   height: 17px;
-  background: rgb(190 242 100 / 0.13);
+  background: rgb(197 161 122 / 0.13);
   filter: blur(8px);
 }
 
@@ -282,8 +334,8 @@ html.has-arena-cursor [contenteditable="true"] {
   left: 50%;
   display: block;
   content: "";
-  background: rgb(190 242 100 / 0.9);
-  box-shadow: 0 0 7px rgb(190 242 100 / 0.8);
+  background: rgb(197 161 122 / 0.9);
+  box-shadow: 0 0 7px rgb(197 161 122 / 0.8);
   translate: -50% -50%;
 }
 
@@ -293,16 +345,16 @@ html.has-arena-cursor [contenteditable="true"] {
 .arena-cursor[data-section="features"] .arena-cursor__ring {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
-  border-color: rgb(125 211 252 / 0.85);
-  background: rgb(125 211 252 / 0.06);
+  border-radius: 6px;
+  border-color: rgb(220 220 170 / 0.85);
+  background: rgb(220 220 170 / 0.06);
   rotate: 45deg;
 }
 
 .arena-cursor[data-section="games"] .arena-cursor__ring {
   width: 38px;
   height: 38px;
-  border-color: rgb(190 242 100 / 0.3);
+  border-color: rgb(197 161 122 / 0.3);
 }
 
 .arena-cursor[data-section="games"] .arena-cursor__crosshair {
@@ -312,24 +364,24 @@ html.has-arena-cursor [contenteditable="true"] {
 .arena-cursor[data-section="cta"] .arena-cursor__ring {
   width: 44px;
   height: 44px;
-  border-color: rgb(190 242 100 / 0.8);
-  box-shadow: 0 0 20px rgb(190 242 100 / 0.16), inset 0 0 14px rgb(190 242 100 / 0.08);
+  border-color: rgb(197 161 122 / 0.8);
+  box-shadow: 0 0 20px rgb(197 161 122 / 0.16), inset 0 0 14px rgb(197 161 122 / 0.08);
   animation: cursor-pulse 1.8s ease-in-out infinite;
 }
 
 .arena-cursor[data-hover="control"] .arena-cursor__ring {
   width: 54px;
   height: 54px;
-  border-color: rgb(190 242 100 / 0.9);
-  background: rgb(190 242 100 / 0.08);
+  border-color: rgb(197 161 122 / 0.9);
+  background: rgb(197 161 122 / 0.08);
 }
 
 .arena-cursor[data-hover="card"] .arena-cursor__ring {
   width: 48px;
   height: 48px;
   border-radius: 13px;
-  border-color: rgb(125 211 252 / 0.9);
-  background: rgb(125 211 252 / 0.06);
+  border-color: rgb(220 220 170 / 0.9);
+  background: rgb(220 220 170 / 0.06);
 }
 
 .arena-cursor[data-hover="text"] .arena-cursor__ring,
@@ -338,7 +390,7 @@ html.has-arena-cursor [contenteditable="true"] {
 }
 
 @keyframes cursor-pulse {
-  50% { box-shadow: 0 0 27px rgb(190 242 100 / 0.25), inset 0 0 18px rgb(190 242 100 / 0.12); }
+  50% { box-shadow: 0 0 27px rgb(197 161 122 / 0.25), inset 0 0 18px rgb(197 161 122 / 0.12); }
 }
 
 [data-reveal],
@@ -348,11 +400,11 @@ html.has-arena-cursor [contenteditable="true"] {
 
 [data-cursor="card"] {
   transform-style: preserve-3d;
-  transition: border-color 220ms ease, box-shadow 220ms ease;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 [data-cursor="card"]:hover {
-  border-color: rgb(190 242 100 / 0.28);
+  border-color: rgb(197 161 122 / 0.28);
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
 }
 
@@ -373,3 +425,245 @@ html.has-arena-cursor [contenteditable="true"] {
     will-change: auto;
   }
 }
+
+
+/* Corner scale from the supplied Electric Dark Arena design. */
+.rounded,
+.rounded-sm { border-radius: 2px; }
+.rounded-md { border-radius: 6px; }
+.rounded-lg { border-radius: 8px; }
+.rounded-xl,
+.rounded-2xl { border-radius: 12px; }
+
+button,
+a,
+input,
+textarea,
+select,
+[data-cursor="card"] {
+  transition-duration: 150ms !important;
+}
+
+::selection {
+  background: #c5a17a;
+  color: #261f18;
+}
+
+/* Compact system typography for the arena protocol interface. */
+.arena-protocol-page {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+.arena-protocol-page button,
+.arena-protocol-page input {
+  font-family: inherit;
+}
+
+.arena-protocol-page b {
+  font-weight: 600;
+}
+
+/* Warm, restrained dark surfaces for the compact arena interface. */
+.arena-protocol-page {
+  --color-background: #18191b;
+  --color-on-surface: #e6e6e8;
+  --color-on-surface-variant: #aaa9ad;
+  --color-muted: #929196;
+  --color-on-primary: #261f18;
+  --color-primary: #c5a17a;
+  background: #18191b;
+  min-height: calc(100vh - 64px);
+  color-scheme: dark;
+}
+
+.arena-protocol-page input {
+  background: #191a1c;
+  border-color: #3c3d41;
+}
+
+.arena-protocol-page button:focus-visible,
+.arena-protocol-page input:focus-visible {
+  outline: 2px solid #c5a17a;
+  outline-offset: 3px;
+}
+
+.arena-protocol-page ::selection {
+  background: #594936;
+  color: #fff;
+}
+
+.arena-navbar-codechef {
+  --color-primary: #c5a17a;
+  --color-on-surface: #e6e6e8;
+  --color-on-surface-variant: #aaa9ad;
+  --color-muted: #929196;
+  background: #202124 !important;
+  border-bottom: 1px solid #343539;
+  box-shadow: none;
+  color-scheme: dark;
+}
+
+.arena-navbar-codechef .bg-\[\#2a2b2e\] {
+  background: #2a2b2e;
+  color: #aaa9ad;
+}
+
+.arena-navbar-codechef button.bg-primary {
+  color: #261f18;
+}
+
+/* Consistent compact controls throughout the application. */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible {
+  outline: 2px solid #c5a17a;
+  outline-offset: 3px;
+}
+
+.text-emerald-400, .text-green-400 { color: #94bc9d; }
+.text-red-400, .text-red-500 { color: #db8080; }
+.text-blue-400, .text-sky-400 { color: #8baac8; }
+
+/* Section-specific color: quiet chrome, distinct content identities. */
+.he-landing { --color-primary: #ff633b; --color-on-primary: #21120d; }
+.he-hero { background: #111114; }
+.he-contours { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
+.he-contours span { position: absolute; width: 650px; height: 560px; right: -130px; bottom: -350px; border: 1px solid #29262b; border-radius: 42% 58% 55% 45%; transform: rotate(-22deg); }
+.he-contours span:nth-child(2) { width: 850px; height: 740px; right: -230px; bottom: -440px; }
+.he-contours span:nth-child(3) { width: 1050px; height: 920px; right: -330px; bottom: -530px; }
+.he-contours span:nth-child(4) { width: 450px; height: 380px; right: -30px; bottom: -260px; border-color: #423a32; }
+.he-feature-grid > article { border: 1px solid #333139; border-radius: 16px; background: #1b1a20; }
+.he-feature-grid > article:nth-child(1) > span { background: #183b35; color: #72c5ad; }
+.he-feature-grid > article:nth-child(2) > span { background: #2b2946; color: #b3a2e4; }
+.he-feature-grid > article:nth-child(3) > span { background: #243248; color: #8eafe2; }
+.he-feature-grid > article a { color: #ff805e; }
+.he-modes-grid > button { border-radius: 12px; border-color: #343239; background: #1f1e24; }
+.he-modes-grid > button:nth-child(1) { --color-primary: #7bc9b0; }
+.he-modes-grid > button:nth-child(2) { --color-primary: #9aaaf0; }
+.he-modes-grid > button:nth-child(3) { --color-primary: #e68bb0; }
+.he-modes-grid > button:nth-child(4) { --color-primary: #7cc3d0; }
+.he-category::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(#ffffff20 1px, transparent 1px); background-size: 15px 15px; opacity: .45; }
+@media (prefers-reduced-motion: reduce) { .he-category:hover { transform: none; } }
+
+/* The landing demo uses a separate slate-blue editor palette. */
+.duel-preview-theme {
+  --color-primary: #81a9ed;
+  --color-on-surface: #e4eaf5;
+  --color-on-surface-variant: #a7b3ca;
+  --color-muted: #8b99b2;
+  --color-secondary: #b6a3d9;
+}
+
+/* Latest Electric Dark Arena reference: local to the public landing page. */
+.reference-landing {
+  --color-primary: #fddf49;
+  --color-on-primary: #24200b;
+  --color-on-surface: #edf1f7;
+  --color-secondary: #929eb2;
+  background-color: #07090d;
+  background-image: linear-gradient(90deg, #fddf4906 1px, transparent 1px), linear-gradient(#00e5ff06 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.reference-hero { background: transparent; }
+.reference-hero h1 span { text-shadow: 0 0 24px #fddf4930; }
+.reference-hero button:first-child { box-shadow: 0 0 24px #fddf4925; }
+.reference-hero [class*="bg-[#101722]"] { background: #0c1119; }
+.reference-navbar { font-family: "Inter Variable", Inter, sans-serif; }
+.reference-navbar nav a, .reference-navbar nav > button { font-size: 11px; }
+.reference-navbar nav button:last-child { background: #fddf49; color: #24200b; }
+.reference-navbar nav button:last-child:hover { background: #ffe76e; }
+.reference-landing #stats { background: #0a0e16; }
+.reference-landing #stats article { border-left: 2px solid #263044; }
+.reference-landing #stats article:nth-child(2) { border-color: #fddf49; }
+.reference-landing #stats article:nth-child(3) { border-color: #00bcd4; }
+.reference-landing #stats article:nth-child(3) > p:first-child { color: #84d8e8; }
+.reference-landing .he-feature-grid > article { background: #0e131d; border-color: #222b3c; border-radius: 12px; }
+.reference-landing .he-feature-grid > article a { color: #fddf49; }
+.reference-landing .he-feature-grid > article:nth-child(2) a { color: #43c7dd; }
+.reference-landing .he-modes-grid > button { background: #0c1119; border-color: #222b3c; }
+.reference-landing .he-modes-grid > button:nth-child(1) { --color-primary: #fddf49; }
+.reference-landing .he-modes-grid > button:nth-child(2) { --color-primary: #43c7dd; }
+.reference-landing .he-modes-grid > button:nth-child(3) { --color-primary: #e17b9b; }
+.reference-landing .he-modes-grid > button:nth-child(4) { --color-primary: #b59ae5; }
+.reference-landing .reference-season { background: linear-gradient(125deg, #111725, #0a1018); border-color: #253047; padding-top: 64px; padding-bottom: 64px; border-radius: 22px; }
+.reference-landing .reference-season button { border-radius: 8px; }
+.reference-landing .reference-season button:not(:first-child) { background: #151d2b; }
+.reference-duel { --color-primary: #fddf49; }
+.reference-duel > div:first-child h2 { font-size: 22px; }
+.reference-duel > div:last-child { background: #090d14; border-color: #222b3c; }
+.reference-duel textarea { font-size: 13px; }
+@media (max-width: 640px) { .reference-duel > div:nth-child(2) { font-size: 10px; } .reference-duel > div:nth-child(2) span { display: none; } }
+
+/* Account forms share the public landing page typography and palette. */
+.auth-refresh {
+  --color-primary: #fddf49;
+  --color-on-surface: #e4eaf5;
+  --color-on-surface-muted: #a7b3ca;
+  --color-on-surface-subtle: #8999b4;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.auth-refresh button, .auth-refresh input { font-family: inherit; }
+.auth-refresh input { outline: none; }
+.auth-refresh button:focus-visible { outline-color: #fddf49; }
+
+/* Preserve the field surface when the browser fills saved credentials. */
+.auth-refresh input:-webkit-autofill,
+.auth-refresh input:-webkit-autofill:hover,
+.auth-refresh input:-webkit-autofill:focus,
+.auth-refresh input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #080c13 inset !important;
+  box-shadow: 0 0 0 1000px #080c13 inset !important;
+  -webkit-text-fill-color: #e4eaf5 !important;
+  caret-color: #e4eaf5;
+}
+.auth-refresh input:autofill {
+  box-shadow: 0 0 0 1000px #080c13 inset !important;
+  color: #e4eaf5 !important;
+  caret-color: #e4eaf5;
+}
+
+/* Match confirmation shares the compact dashboard typography. */
+.match-found-screen {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  font-feature-settings: normal;
+}
+.match-found-screen button { font-family: inherit; letter-spacing: normal; }
+.match-found-screen h1, .match-found-screen h2 { letter-spacing: normal; }
+
+/* Profile shares the dashboard/report typography and surface hierarchy. */
+.profile-dashboard, .profile-edit-modal {
+  --color-primary: #fddf49;
+  --color-on-primary: #24200b;
+  --color-on-surface: #e7ebf0;
+  --color-on-surface-variant: #a3aab5;
+  --color-on-surface-muted: #a3aab5;
+  --color-on-surface-subtle: #858f9f;
+  --color-muted: #858f9f;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.profile-dashboard .font-mono { font-family: inherit; }
+.profile-dashboard .profile-hero-cover {
+  background-color: #111619;
+  background-image: radial-gradient(ellipse at 20% 30%, #fddf4912, transparent 65%), linear-gradient(120deg, #12171b, #1d211e);
+}
+.profile-dashboard button, .profile-edit-modal button { font-family: inherit; letter-spacing: normal; }
+.profile-dashboard h2 { font-size: 15px; font-weight: 600; }
+.profile-dashboard h3 { font-size: 13px; font-weight: 600; }
+.profile-dashboard .text-\[9px\], .profile-dashboard .text-\[8px\] { font-size: 10px; }
+.profile-dashboard button:focus-visible, .profile-edit-modal button:focus-visible { outline-color: #fddf49; }
+.profile-edit-modal { background: #16191c; border-color: #343b47; }
+.profile-edit-modal input, .profile-edit-modal textarea { font-family: inherit; font-size: 13px; }
+.profile-edit-modal input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px #101418 inset; -webkit-text-fill-color: #e7ebf0; }

@@ -103,10 +103,10 @@ export function AuthProvider({ children }) {
       }}
     >
       {loading ? (
-        <div className="fixed inset-0 flex items-center justify-center bg-[#0b100f]">
+        <div className="fixed inset-0 flex items-center justify-center bg-[#18191b]">
           <div className="relative flex items-center justify-center">
-            <span className="h-8 w-8 animate-ping rounded-full bg-lime-300/30" />
-            <span className="absolute h-3 w-3 rounded-full bg-lime-300 shadow-[0_0_12px_#bef264]" />
+            <span className="h-8 w-8 animate-ping rounded-full bg-primary/30" />
+            <span className="absolute h-3 w-3 rounded-full bg-primary shadow-[0_0_12px_#c5a17a]" />
           </div>
         </div>
       ) : (

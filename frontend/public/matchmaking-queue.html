@@ -1,0 +1,420 @@
+<!DOCTYPE html><html class="dark" lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_standard" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+  }
+  body {
+    overscroll-behavior: none;
+    background-color: #0d0f11;
+  }
+  main > :first-child { margin-top: 0 !important; }
+  main > :last-child { margin-bottom: 0 !important; }
+}
+::-webkit-scrollbar { display: none; }
+.font-mono-code { font-family: 'JetBrains Mono', monospace; }
+
+/* Subtle Cyber Mesh Background */
+.cyber-grid-bg {
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(253, 223, 73, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(226, 198, 48, 0.04) 0%, transparent 35%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+}
+
+/* Radar ping keyframes */
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.radar-sweep-anim {
+  animation: radar-sweep 4s linear infinite;
+  transform-origin: center center;
+}
+</style><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-secondary-fixed":"#1a1c20","on-secondary-container":"#B7B8BE","surface-container":"#16191c","error":"#EF4444","secondary-container":"#262a30","surface-bright":"#2e3239","surface-container-highest":"#252930","on-tertiary-container":"#636262","tertiary":"#fffcfb","on-secondary-fixed-variant":"#45474c","secondary-fixed-dim":"#c6c6cc","border-strong":"#374151","surface-dim":"#101215","surface-container-high":"#1f2328","surface-tint":"#E2C630","outline-variant":"#3d3928","surface-container-lowest":"#0a0b0d","inverse-surface":"#e2e2e2","error-container":"#450a0a","on-error":"#fee2e2","on-tertiary-fixed":"#1c1b1b","outline":"#97917A","primary-container":"#FDDF49","on-tertiary":"#313030","border":"rgba(255,255,255,0.08)","on-error-container":"#FFDAD6","on-surface":"#F5F5F7","surface":"#121417","tertiary-fixed-dim":"#c8c6c5","on-surface-variant":"#c2beaf","inverse-on-surface":"#2f3131","primary":"#fffbff","tertiary-fixed":"#e5e2e1","on-primary-container":"#423800","on-background":"#e2e2e2","on-secondary":"#2f3035","primary-fixed-dim":"#e2c630","on-primary-fixed-variant":"#534600","tertiary-container":"#E2DFDE","inverse-primary":"#6e5e00","surface-container-low":"#121518","background":"#0d0f11","on-primary-fixed":"#211b00","secondary-fixed":"#e2e2e8","on-tertiary-fixed-variant":"#474746","secondary":"#9ca3af","surface-variant":"#22262c","muted":"#808691","primary-fixed":"#ffe255","on-primary":"#1f1a00"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.375rem","xl":"0.625rem","full":"9999px"},"spacing":{"space-sm":"1rem","space-xs":"0.5rem","margin":"1.75rem","gutter":"1rem","space-lg":"3rem","space-xl":"6rem","space-md":"1.5rem"},"fontFamily":{"headline-display":["Inter"],"caption":["Inter"],"label-lg":["Inter"],"label-md":["Inter"],"body-md":["Inter"],"headline-display-mobile":["Inter"],"headline-lg":["Inter"],"label-sm":["Inter"],"body-sm":["Inter"],"headline-md":["Inter"],"headline-sm":["Inter"],"body-lg":["Inter"],"mono":["JetBrains Mono","monospace"]},"fontSize":{"headline-display":["36px",{"lineHeight":"43px","letterSpacing":"-0.03em","fontWeight":"700"}],"caption":["12px",{"lineHeight":"16px","fontWeight":"500"}],"label-lg":["16px",{"lineHeight":"20px","fontWeight":"700"}],"label-md":["14px",{"lineHeight":"18px","fontWeight":"600"}],"body-md":["16px",{"lineHeight":"28px","fontWeight":"400"}],"headline-display-mobile":["30px",{"lineHeight":"36px","letterSpacing":"-0.02em","fontWeight":"700"}],"headline-lg":["28px",{"lineHeight":"36px","letterSpacing":"-0.03em","fontWeight":"700"}],"label-sm":["12px",{"lineHeight":"16px","fontWeight":"600"}],"body-sm":["14px",{"lineHeight":"22px","fontWeight":"400"}],"headline-md":["22px",{"lineHeight":"30px","letterSpacing":"-0.02em","fontWeight":"700"}],"headline-sm":["18px",{"lineHeight":"24px","fontWeight":"600"}],"body-lg":["18px",{"lineHeight":"28px","fontWeight":"500"}]}}}}</script><style id="shared-compact-typography">
+html { font-size: 14px; }
+body, h1, h2, h3, h4, p, a, button, label, select,
+.font-mono-code, .font-mono, [class*="font-headline"], [class*="font-body"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
+  font-feature-settings: normal;
+}
+body { font-size: 13px; line-height: 1.5; }
+h1 { font-size: 28px !important; line-height: 1.25 !important; font-weight: 650 !important; }
+h2 { font-size: 22px !important; line-height: 1.3 !important; font-weight: 650 !important; }
+h3 { font-size: 15px !important; line-height: 1.4 !important; font-weight: 600 !important; }
+button, a { transition-duration: 150ms !important; }
+button { font-size: 12px; letter-spacing: normal !important; }
+header nav a { font-size: 11px !important; }
+.font-black, .font-extrabold { font-weight: 650 !important; }
+pre, code, pre *, code *, textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 12px;
+  line-height: 21px;
+}
+.py-24, .py-20 { padding-top: 48px; padding-bottom: 48px; }
+.py-16 { padding-top: 40px; padding-bottom: 40px; }
+@media (max-width: 640px) {
+  h1 { font-size: 24px !important; }
+  h2 { font-size: 20px !important; }
+}
+</style><style>
+body > header { display: none; }
+main { padding-top: 28px !important; min-height: calc(100vh - 72px) !important; }
+main > div { max-width: 1280px; margin-inline: auto; }
+#tactical-runtime-toggles button { white-space: nowrap; min-height: 36px; }
+#queue-timer-minutes, #queue-timer-seconds { font-size: 32px; }
+#cancel-queue-action { white-space: nowrap; }
+</style><style id="queue-compact-type">
+html { font-size: 14px; }
+body { font-size: 13px; line-height: 1.5; }
+body, h1, h2, h3, h4, p, a, button, label, select,
+.font-mono-code, .font-mono, [class*="font-headline"], [class*="font-body"], [class*="font-label"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
+  font-feature-settings: normal;
+}
+h1 { font-size: 24px !important; line-height: 1.3 !important; }
+h2, h3 { font-size: 18px !important; line-height: 1.4 !important; }
+.font-headline-sm { font-size: 15px !important; line-height: 1.5 !important; }
+.font-label-lg, .text-label-lg { font-size: 13px !important; line-height: 1.5 !important; }
+.font-label-md, .text-label-md, .text-body-sm { font-size: 12px !important; line-height: 1.5 !important; }
+.font-label-sm, .text-label-sm { font-size: 11px !important; line-height: 1.5 !important; }
+#queue-timer-minutes, #queue-timer-seconds { font-size: 28px !important; line-height: 1.15 !important; }
+#cancel-queue-action { font-size: 12px !important; padding: 10px 16px !important; }
+#tactical-runtime-toggles button { font-size: 12px !important; padding: 8px 12px !important; }
+pre, code, pre *, code *, textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; }
+</style>
+</head><body class="bg-background font-body-sm text-on-surface antialiased cyber-grid-bg min-h-screen selection:bg-primary-container selection:text-on-primary">
+<!-- TOP STRIPPED NAVBAR -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-[#0d0f11]/80 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+<div class="h-16 w-full px-4 sm:px-margin flex items-center justify-between gap-gutter">
+<!-- Left: Brand + Stripped Exact Nav -->
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2.5 cursor-pointer select-none group">
+<div class="w-8 h-8 rounded-lg bg-surface-container-high border border-primary-container/30 flex items-center justify-center relative shadow-[0_0_12px_rgba(253,223,73,0.15)] group-hover:border-primary-container transition-all">
+<span class="material-symbols-outlined text-primary-container text-[19px]">terminal</span>
+<span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0d0f11]"></span>
+</div>
+<div class="flex flex-col">
+<span class="font-bold text-sm tracking-widest uppercase text-white leading-none">Code Arena</span>
+<span class="font-mono-code text-[11px] text-emerald-400 leading-tight flex items-center gap-1 mt-0.5">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Online • 14ms
+          </span>
+</div>
+</div>
+<!-- Navigation links (only Command Deck active and Battle Modes) -->
+<nav class="hidden md:flex items-center gap-1.5 pl-2" data-active-classes="bg-surface-container-high text-primary-container border-b-2 border-primary-container font-label-md">
+<a class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted hover:text-white hover:bg-white/[0.04] transition-all rounded-md" data-path="command-deck" href="#">Command Deck</a>
+<a class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted hover:text-white hover:bg-white/[0.04] transition-all rounded-md text-primary-container" data-path="battle-modes" href="#">Battle Modes</a>
+</nav>
+</div>
+<!-- Center: 1v1 Quick Duel CTA -->
+<div class="flex items-center justify-center">
+<button class="group relative flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-container text-on-primary font-bold text-xs uppercase tracking-wider transition-all hover:brightness-110 active:scale-95 shadow-[0_0_20px_rgba(253,223,73,0.35)]" type="button">
+<span class="material-symbols-outlined text-[17px] group-hover:rotate-12 transition-transform">bolt</span>
+<span>1v1 Quick Duel</span>
+<span class="flex h-2 w-2 relative ml-0.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-on-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-on-primary"></span>
+</span>
+</button>
+</div>
+<!-- Right: Radiant #11 Badge, Notification, Profile -->
+<div class="flex items-center gap-3">
+<div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container-high border border-white/[0.08] shadow-inner">
+<div class="flex flex-col text-left">
+<span class="font-mono-code text-[11px] font-bold text-primary-container tracking-wider uppercase leading-none">RADIANT #11</span>
+<span class="font-mono-code text-[10px] text-muted leading-tight mt-0.5">480 RR</span>
+</div>
+</div>
+<button aria-label="Notifications" class="relative p-2 rounded-lg bg-surface-container-high border border-white/[0.08] text-muted hover:text-white hover:bg-surface-bright transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-error ring-2 ring-[#0d0f11]"></span>
+</button>
+<div class="flex items-center gap-2 pl-1 cursor-pointer group">
+<div class="w-9 h-9 rounded-full ring-2 ring-primary-container/80 ring-offset-2 ring-offset-[#0d0f11] bg-surface-container-high flex items-center justify-center overflow-hidden group-hover:ring-primary-container transition-all">
+<span class="material-symbols-outlined text-primary-container text-[20px]">person</span>
+</div>
+<div class="hidden md:flex flex-col text-left">
+<span class="text-xs font-semibold text-white group-hover:text-primary-container transition-colors leading-none">v0id_runner</span>
+<span class="font-mono-code text-[10px] text-emerald-400 leading-tight mt-0.5">Online</span>
+</div>
+<span class="material-symbols-outlined text-muted text-[16px] hidden md:block group-hover:text-white transition-colors">expand_more</span>
+</div>
+</div>
+</div>
+</header>
+<main class="w-full pt-20 pb-12 bg-transparent min-h-screen"><div class="flex flex-col w-full">
+<div class="w-full max-w-7xl mx-auto px-4 sm:px-margin py-space-sm flex flex-col gap-space-md">
+<!-- TOP HUD: MATCHMAKING STATUS & TIME COUNTER -->
+<div class="relative w-full rounded-xl bg-surface-container-low p-space-md shadow-xl overflow-hidden flex flex-col lg:flex-row items-center justify-between gap-space-md">
+<!-- Glow Accent Overlay -->
+<div class="absolute -left-12 -top-12 w-48 h-48 rounded-full bg-primary-container/10 blur-3xl pointer-events-none"></div>
+<div class="absolute -right-12 -bottom-12 w-48 h-48 rounded-full bg-surface-tint/5 blur-3xl pointer-events-none"></div>
+<!-- Left: Radar Pulse & Queue Status Header -->
+<div class="flex items-center gap-space-md z-10 w-full lg:w-auto">
+<!-- Animated Radar Ping Visual -->
+<div class="relative w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center shrink-0 shadow-inner">
+<div class="absolute inset-0 rounded-full border border-primary-container/20"></div>
+<div class="absolute inset-2 rounded-full border border-primary-container/40"></div>
+<div class="absolute inset-0 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(253,223,73,0.15)_0%,transparent_70%)]"></div>
+<!-- Rotating Radar Sweep Line -->
+<svg class="absolute inset-0 w-full h-full radar-sweep-anim pointer-events-none" viewBox="0 0 100 100">
+<defs>
+<linearGradient id="radarBeam" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#FDDF49" stop-opacity="0.8"></stop>
+<stop offset="100%" stop-color="#FDDF49" stop-opacity="0"></stop>
+</linearGradient>
+</defs>
+<path d="M 50 50 L 50 0 A 50 50 0 0 1 100 50 Z" fill="url(#radarBeam)" opacity="0.35"></path>
+</svg>
+<span class="material-symbols-outlined text-primary-container text-headline-sm animate-pulse">radar</span>
+<span class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-primary-container animate-ping"></span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded bg-primary-container text-on-primary font-label-sm uppercase tracking-wider">LIVE QUEUE</span>
+<span class="font-label-md text-on-surface uppercase tracking-wider truncate">MATCHMAKING IN PROGRESS // PROTOCOL: 1V1 RANKED</span>
+</div>
+<p class="font-body-sm text-muted mt-1 truncate">
+            Searching combat cluster <span class="text-on-surface font-semibold">US-East (Virginia)</span> • Target MMR: <span class="text-primary-container font-semibold">2,300 - 2,450 RR</span> (Radiant Tier)
+          </p>
+</div>
+</div>
+<!-- Center: Giant Monospaced Match Timer -->
+<div class="flex items-center gap-space-md z-10">
+<div class="flex flex-col items-center justify-center bg-surface-container px-space-md py-space-xs rounded-xl shadow-inner">
+<span class="font-caption uppercase text-muted tracking-widest">Elapsed Time</span>
+<div class="flex items-baseline gap-1">
+<span class="font-mono-code font-bold text-headline-display text-primary-container leading-none" id="queue-timer-minutes">00</span>
+<span class="font-mono-code font-bold text-headline-display text-primary-container leading-none animate-pulse">:</span>
+<span class="font-mono-code font-bold text-headline-display text-primary-container leading-none" id="queue-timer-seconds">00</span>
+</div>
+<span class="font-caption text-surface-tint tracking-wide mt-0.5">EST. WAIT: ~00:14</span>
+</div>
+</div>
+<!-- Right: Abort Queue Button -->
+<div class="flex items-center gap-3 z-10 w-full lg:w-auto justify-end">
+<button class="group flex items-center justify-center gap-2 px-space-md py-3 rounded-lg bg-error-container text-on-error-container hover:bg-error hover:text-surface-dim transition-all shadow-md active:scale-95 font-label-md uppercase tracking-wider" id="cancel-queue-action" type="button">
+<span class="material-symbols-outlined text-label-lg group-hover:rotate-90 transition-transform">close</span>
+<span>CANCEL QUEUE (ESC)</span>
+</button>
+</div>
+</div>
+<!-- MAIN 1V1 DUELIST MATCHMAKING SHOWDOWN ARENA -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-stretch">
+<!-- LEFT: PLAYER GLADIATOR PROFILE CARD (5 cols) -->
+<div class="lg:col-span-5 rounded-xl bg-surface-container p-space-md shadow-xl flex flex-col justify-between relative overflow-hidden">
+<!-- Radial Glow -->
+<div class="absolute top-0 right-0 w-40 h-40 bg-primary-container/10 rounded-full blur-2xl pointer-events-none"></div>
+<div>
+<!-- Card Header / Status -->
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-sm uppercase text-primary-container tracking-wider">COMMAND PILOT (YOU)</span>
+</div>
+<span class="font-caption px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-mono-code">SEED #011-A</span>
+</div>
+<!-- Hero User Avatar & Identity -->
+<div class="flex items-center gap-space-sm pt-space-xs">
+<div class="relative w-16 h-16 rounded-xl bg-surface-container-highest flex items-center justify-center shrink-0 overflow-hidden shadow-lg">
+<img class="w-full h-full object-cover" data-alt="Cyberpunk esports gladiator portrait with luminous yellow tactical goggles, deep charcoal obsidian cybernetic armor, and dark cinematic background lighting with neon yellow accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVfEtas7r4pVvI-ycF13vVry_giDEUE_jsvSIqYNX3oojwuCtlc-r6nuW6TqTMPIANHiFqj62bzk_SwhrasPpUymp-IOv69hwds_pbVMCumZl0tfbz4QWa2yhLdUkYDirwzrYuBwmm9CfMvSPYPcn15zHRDRDweTe1l7KGiNLNItkxMaj98QU7Eb2l8vSlcNjg7gr6QbYTD8zakRsallZAjpuaiySfAzJp2h1dh4jY">
+<div class="absolute bottom-0 inset-x-0 h-4 bg-gradient-to-t from-surface-dim to-transparent"></div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-on-surface font-bold tracking-tight truncate">v0id_runner</span>
+<span class="material-symbols-outlined text-primary-container text-label-md" style="font-variation-settings: &quot;FILL&quot; 1;">verified</span>
+</div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary-container font-label-sm uppercase tracking-wide">RADIANT #11</span>
+<span class="font-caption text-muted font-mono-code">480 RR • Top 0.05%</span>
+</div>
+</div>
+</div>
+<!-- Combat Runtime Selector -->
+<div class="mt-space-md p-space-xs rounded-lg bg-surface-container-low flex flex-col gap-1.5">
+<div class="flex items-center justify-between px-2 pt-1">
+<span class="font-caption text-muted uppercase tracking-wider">Combat Runtime Stack</span>
+<span class="font-caption text-primary-container font-mono-code">DOCKER SANDBOX ISOLATION</span>
+</div>
+<div class="grid grid-cols-3 gap-1.5" id="tactical-runtime-toggles">
+<button class="runtime-toggle-item py-1.5 px-2 rounded bg-primary-container text-on-primary font-label-sm font-mono-code transition-all text-center flex items-center justify-center gap-1 shadow-sm" type="button">
+<span class="material-symbols-outlined text-caption">code</span> Python 3.11
+              </button>
+<button class="runtime-toggle-item py-1.5 px-2 rounded bg-surface-container text-muted hover:text-on-surface hover:bg-surface-container-high font-label-sm font-mono-code transition-all text-center flex items-center justify-center gap-1" type="button">
+                Rust 1.76
+              </button>
+<button class="runtime-toggle-item py-1.5 px-2 rounded bg-surface-container text-muted hover:text-on-surface hover:bg-surface-container-high font-label-sm font-mono-code transition-all text-center flex items-center justify-center gap-1" type="button">
+                C++ 20
+              </button>
+</div>
+</div>
+<!-- Gladiator Vital Metrics Grid -->
+<div class="grid grid-cols-3 gap-2 mt-space-md">
+<div class="p-space-xs rounded-lg bg-surface-container-low flex flex-col">
+<span class="font-caption text-muted uppercase tracking-wider">Winrate</span>
+<span class="font-label-lg text-primary-container font-mono-code mt-0.5">72.4%</span>
+<span class="font-caption text-on-surface-variant font-mono-code text-[11px]">89W / 34L</span>
+</div>
+<div class="p-space-xs rounded-lg bg-surface-container-low flex flex-col">
+<span class="font-caption text-muted uppercase tracking-wider">Win Streak</span>
+<div class="flex items-center gap-1 mt-0.5">
+<span class="font-label-lg text-on-surface font-mono-code">5 WINS</span>
+<span class="material-symbols-outlined text-primary-container text-label-md">local_fire_department</span>
+</div>
+<span class="font-caption text-surface-tint font-mono-code text-[11px]">Rank Shield Safe</span>
+</div>
+<div class="p-space-xs rounded-lg bg-surface-container-low flex flex-col">
+<span class="font-caption text-muted uppercase tracking-wider">Peak APM</span>
+<span class="font-label-lg text-on-surface font-mono-code mt-0.5">412</span>
+<span class="font-caption text-muted font-mono-code text-[11px]">AST Syntactic Speed</span>
+</div>
+</div>
+</div>
+<!-- Telemetry Footer Ribbon -->
+<div class="pt-space-md flex items-center justify-between text-muted font-caption font-mono-code">
+<div class="flex items-center gap-1.5 text-on-surface">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span>Cluster Ping: 14ms (Optimal)</span>
+</div>
+<span>Loss: 0.00% • Tick: 128Hz</span>
+</div>
+</div>
+<!-- CENTER: VS CLASH DIVIDER (2 cols) -->
+<div class="lg:col-span-2 flex flex-col items-center justify-center py-4 lg:py-0 relative">
+<!-- Vertical Energy Trace Line -->
+<div class="absolute inset-y-4 w-px bg-surface-container-highest hidden lg:block"></div>
+<div class="relative z-10 flex flex-col items-center gap-3">
+<!-- Central Hexagon / VS Hub -->
+<div class="w-14 h-14 rounded-full bg-surface-container-high shadow-2xl flex items-center justify-center p-1 relative">
+<div class="w-full h-full rounded-full bg-surface-dim flex items-center justify-center">
+<span class="font-headline-sm font-black text-primary-container tracking-tighter">VS</span>
+</div>
+<!-- Concentric Pulse Ring -->
+<span class="absolute -inset-1 rounded-full border border-primary-container/30 animate-ping pointer-events-none"></span>
+</div>
+<!-- Dynamic Bracket Constraints -->
+<div class="flex flex-col items-center text-center">
+<span class="font-caption text-primary-container font-mono-code font-bold uppercase tracking-widest">RANK CONFINEMENT</span>
+<span class="font-caption text-muted font-mono-code mt-0.5">IMMORTAL 3 — RADIANT</span>
+</div>
+<!-- MMR Match Score Window -->
+<div class="px-3 py-1 rounded-full bg-surface-container-low font-caption text-on-surface-variant font-mono-code flex items-center gap-1.5">
+<span class="material-symbols-outlined text-caption text-surface-tint">tune</span>
+<span>Tolerance ±75 RR</span>
+</div>
+</div>
+</div>
+<!-- RIGHT: SEARCHING OPPONENT HOLOGRAPHIC CIPHER CARD (5 cols) -->
+<div class="lg:col-span-5 rounded-xl bg-surface-container p-space-md shadow-xl flex flex-col justify-between relative overflow-hidden">
+<!-- Hologram Grid Scan Animation -->
+<div class="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_0%,rgba(253,223,73,0.03)_50%,transparent_100%)] bg-[length:100%_8px] pointer-events-none"></div>
+<div>
+<!-- Card Header / Status -->
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-surface-tint animate-ping"></span>
+<span class="font-label-sm uppercase text-surface-tint tracking-wider">CHALLENGER NODE [ACQUIRING]</span>
+</div>
+<span class="font-caption px-2 py-0.5 rounded bg-surface-container-high text-muted font-mono-code">FILTER: STRICT</span>
+</div>
+<!-- Searching Holographic Placeholder Avatar & Identity -->
+<div class="flex items-center gap-space-sm pt-space-xs">
+<div class="relative w-16 h-16 rounded-xl bg-surface-container-lowest flex items-center justify-center shrink-0 overflow-hidden shadow-lg">
+<div class="absolute inset-0 flex items-center justify-center text-surface-tint/30">
+<span class="material-symbols-outlined text-[42px] animate-pulse">lock</span>
+</div>
+<div class="w-full h-full bg-gradient-to-t from-surface-dim via-transparent to-transparent"></div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-surface-tint font-mono-code font-bold tracking-tight truncate" id="dynamic-cipher-handle">k3rn3l_sh1ft</span>
+</div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-muted font-label-sm uppercase tracking-wide">MATCH CANDIDATE</span>
+<span class="font-caption text-surface-tint font-mono-code">EVALUATING 14 NODES</span>
+</div>
+</div>
+</div>
+<!-- Searching Matrix & Algorithmic Parameters -->
+<div class="mt-space-md p-space-xs rounded-lg bg-surface-container-low flex flex-col gap-1.5">
+<div class="flex items-center justify-between px-2 pt-1">
+<span class="font-caption text-muted uppercase tracking-wider">Algorithmic Filters</span>
+<span class="font-caption text-surface-tint font-mono-code">ACTIVE CRITERIA</span>
+</div>
+<div class="p-2 rounded bg-surface-container font-mono-code text-caption flex flex-col gap-1">
+<div class="flex items-center justify-between text-muted">
+<span>Latency Threshold</span>
+<span class="text-on-surface font-semibold">&lt; 25ms Dedicated Routing</span>
+</div>
+<div class="flex items-center justify-between text-muted">
+<span>Anti-Cheat Kernel Status</span>
+<span class="text-primary-container font-semibold">HYPERVISOR ENFORCED</span>
+</div>
+<div class="flex items-center justify-between text-muted">
+<span>Keyboard Input Telemetry</span>
+<span class="text-on-surface font-semibold">Keystroke Dynamics Sync</span>
+</div>
+</div>
+</div>
+<!-- Real-Time Cipher Candidate Feed -->
+<div class="grid grid-cols-2 gap-2 mt-space-md">
+<div class="p-space-xs rounded-lg bg-surface-container-low flex flex-col">
+<span class="font-caption text-muted uppercase tracking-wider">Candidate Latency</span>
+<span class="font-label-lg text-on-surface font-mono-code mt-0.5">~16ms - 22ms</span>
+<span class="font-caption text-muted font-mono-code text-[11px]">Direct Peer Transit</span>
+</div>
+<div class="p-space-xs rounded-lg bg-surface-container-low flex flex-col">
+<span class="font-caption text-muted uppercase tracking-wider">MMR Differential</span>
+<span class="font-label-lg text-primary-container font-mono-code mt-0.5">±18 RR Expected</span>
+<span class="font-caption text-surface-tint font-mono-code text-[11px]">Fair Play Rating A+</span>
+</div>
+</div>
+</div>
+<!-- Telemetry Footer Ribbon -->
+<div class="pt-space-md flex items-center justify-between text-muted font-caption font-mono-code">
+<div class="flex items-center gap-1.5 text-surface-tint">
+<span class="material-symbols-outlined text-[14px] animate-spin">sync</span>
+<span>Iterating Match Engine Matrix...</span>
+</div>
+<span>Region: NA-EAST-1</span>
+</div>
+</div>
+</div>
+<!-- LOWER SECTION: TACTICAL METRICS, QUEUE WARMUP SANDBOX, AND STAKES -->
+
+</div>
+</div>
+</main>
+<!-- FOOTER -->
+<footer class="w-full bg-[#0a0b0d] border-t border-white/[0.06] py-5">
+<div class="w-full max-w-7xl mx-auto px-4 sm:px-margin flex flex-col md:flex-row items-center justify-between gap-4">
+<div class="flex items-center gap-2 font-mono-code text-xs text-muted">
+<span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+<span>All Battle Clusters Nominal</span>
+<span class="text-white/20">•</span>
+<span>Docker Micro-VM SLA 99.98%</span>
+</div>
+<div class="flex items-center gap-5 text-xs text-muted">
+<a class="hover:text-primary-container transition-colors" href="#">Arena Codex</a>
+<a class="hover:text-primary-container transition-colors" href="#">Tournament Rules</a>
+<a class="hover:text-primary-container transition-colors" href="#">API Service</a>
+<a class="hover:text-primary-container transition-colors" href="#">Privacy &amp; Fair Play</a>
+</div>
+<div class="font-mono-code text-xs text-muted">
+      © 2025 Code Arena Esports. All rights reserved.
+    </div>
+</div>
+</footer>
+
+
+
+</body></html>

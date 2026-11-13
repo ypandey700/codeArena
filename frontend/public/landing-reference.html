@@ -1,0 +1,1037 @@
+<!DOCTYPE html><html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Code Arena | Real-time Multiplayer 1v1 Algorithm Duels</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              yellow: '#FDDF49',
+              yellowHover: '#E5C93F',
+              cyan: '#00E5FF',
+              dark: '#080A0E',
+              card: '#10141D',
+              cardBorder: '#1F2737',
+              surface: '#151B27'
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: CustomStyles -->
+<style data-purpose="cyberpunk-arena-theme">
+    body {
+      background-color: #07090D;
+      color: #E2E8F0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    
+    /* Cyberpunk Grid Background */
+    .cyber-grid-mesh {
+      background-size: 48px 48px;
+      background-image: 
+        linear-gradient(to right, rgba(253, 223, 73, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 229, 255, 0.035) 1px, transparent 1px);
+    }
+
+    .cyber-radial-mask {
+      mask-image: radial-gradient(circle at 50% 40%, black 35%, transparent 80%);
+      -webkit-mask-image: radial-gradient(circle at 50% 40%, black 35%, transparent 80%);
+    }
+
+    .text-glow-yellow {
+      text-shadow: 0 0 24px rgba(253, 223, 73, 0.4), 0 0 45px rgba(253, 223, 73, 0.2);
+    }
+
+    .text-glow-cyan {
+      text-shadow: 0 0 20px rgba(0, 229, 255, 0.35);
+    }
+
+    .card-matrix-glow {
+      box-shadow: 0 0 0 1px rgba(253, 223, 73, 0.12), 0 10px 40px -10px rgba(0, 0, 0, 0.8), 0 0 30px -10px rgba(0, 229, 255, 0.08);
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0B0E14;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #222C3E;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #394863;
+    }
+
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 0.12; transform: scale(1) translate(-50%, -50%); }
+      50% { opacity: 0.22; transform: scale(1.08) translate(-50%, -50%); }
+    }
+    .animate-pulse-slow {
+      animation: pulse-slow 8s ease-in-out infinite;
+    }
+  </style>
+<!-- END: CustomStyles -->
+<style id="compact-sizing">
+html { font-size: 14px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; font-size: 13px; line-height: 1.5; }
+h1, h2, h3 { font-weight: 650 !important; }
+#page-hero { min-height: auto; padding-top: 64px; padding-bottom: 32px; gap: 40px; }
+#page-hero h1 { font-size: 48px; line-height: 1.15; letter-spacing: -.035em; margin-bottom: 20px; }
+#page-hero p { font-size: 15px; line-height: 1.8; max-width: 720px; }
+#page-hero a:not(.group.flex-col) { font-size: 12px; }
+#page-hero > div:last-child { margin-top: 20px; }
+section h2 { font-size: 26px !important; line-height: 1.2 !important; }
+section h3 { font-size: 15px !important; }
+header { font-size: 12px; }
+header nav { font-size: 11px; }
+button, a { transition-duration: 150ms !important; }
+.font-black, .font-extrabold { font-weight: 650; }
+.py-24, .py-20 { padding-top: 48px; padding-bottom: 48px; }
+.py-16 { padding-top: 40px; padding-bottom: 40px; }
+textarea#code-editor { font-size: 12px; line-height: 21px; }
+@media (max-width: 640px) {
+ #page-hero { padding-top: 40px; gap: 28px; }
+ #page-hero h1 { font-size: 34px; }
+ #page-hero p { font-size: 13px; line-height: 1.7; }
+ section h2 { font-size: 22px !important; }
+}
+</style>
+<style id="previous-font-style">
+body, h1, h2, h3, h4, p, a, button, label, select, .font-sans, .font-mono {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
+  font-feature-settings: normal;
+}
+textarea, pre, code, kbd, #line-numbers {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+</style>
+<style id="coding-preview-typography">
+#duel-preview { font-size: 13px; }
+#duel-preview p { line-height: 1.65; }
+#duel-preview button, #duel-preview select { font-size: 12px; letter-spacing: normal; }
+#editor-view-code { min-height: 350px; }
+#editor-view-code > div:first-child, #code-editor {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+  font-size: 13px !important;
+  font-weight: 400;
+  line-height: 23px !important;
+  letter-spacing: normal;
+  font-variant-ligatures: none;
+  padding-top: 16px !important;
+  padding-bottom: 16px !important;
+  box-sizing: border-box;
+}
+#editor-view-code > div:first-child {
+  flex: 0 0 44px;
+  width: 44px;
+  overflow: hidden;
+  color: #64748b;
+}
+#editor-view-code > div:first-child > span { height: 23px; min-height: 23px; margin: 0 !important; }
+#code-editor {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  min-height: 350px;
+  padding-left: 16px;
+  padding-right: 16px;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 4;
+  color: #d5deed;
+}
+#code-editor:focus-visible { outline: none; box-shadow: inset 0 0 0 1px #40536e; }
+#tc-content { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important; font-size: 12px; line-height: 22px; }
+#duel-result-bar { flex-wrap: wrap; gap: 8px; font-size: 11px; }
+@media (max-width: 640px) { #code-editor, #editor-view-code > div:first-child { font-size: 12px !important; } }
+</style>
+<style id="editor-action-row">
+#btn-run, #btn-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+#btn-run span, #btn-submit span { white-space: nowrap; }
+#editor-view-code { min-width: 0; }
+div:has(> #btn-run):has(> #btn-submit) { flex-wrap: nowrap; flex-shrink: 0; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#07090D] text-slate-100 antialiased selection:bg-[#FDDF49] selection:text-black relative overflow-x-hidden">
+<!-- Layered Atmospheric Cyberpunk Canvas Elements -->
+<div class="fixed inset-0 cyber-grid-mesh cyber-radial-mask pointer-events-none z-0"></div>
+<!-- Electric Yellow Ambient Glow -->
+<div class="fixed top-24 left-1/2 w-[700px] h-[380px] bg-[#FDDF49]/10 rounded-full blur-[140px] pointer-events-none z-0 animate-pulse-slow"></div>
+<!-- Cyan Circuit Accent Glow -->
+<div class="fixed top-[55%] left-1/4 w-[480px] h-[320px] bg-[#00E5FF]/6 rounded-full blur-[150px] pointer-events-none z-0"></div>
+<div class="fixed top-[75%] right-1/4 w-[520px] h-[320px] bg-[#FDDF49]/5 rounded-full blur-[160px] pointer-events-none z-0"></div>
+<!-- BEGIN: MainHeader -->
+<header class="sticky top-0 z-40 bg-[#07090D]/85 backdrop-blur-xl border-b border-[#1A2230]">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative z-10">
+<!-- Logo -->
+<a class="flex items-center gap-2.5 group" href="#">
+<div class="relative flex items-center justify-center">
+<span class="w-3.5 h-3.5 rounded-sm bg-[#FDDF49] rotate-45 shadow-[0_0_14px_#FDDF49] group-hover:rotate-90 group-hover:scale-110 transition-all duration-300"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-cyan-400 absolute"></span>
+</div>
+<span class="font-black tracking-tight text-white text-lg flex items-center gap-1 font-mono">
+    CODE<span class="text-[#FDDF49]">ARENA</span>
+<span class="text-[9px] font-mono text-cyan-400 px-1 py-0.2 rounded border border-cyan-400/30 bg-cyan-400/10 ml-1 uppercase">v2.4</span>
+</span>
+</a>
+<!-- Navigation links -->
+<nav class="hidden md:flex items-center gap-7 text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
+<a class="hover:text-white transition-colors flex items-center gap-1" href="#page-hero">
+<span class="w-1 h-1 rounded-full bg-slate-500"></span>Overview
+</a>
+<a class="hover:text-[#FDDF49] transition-colors text-slate-200 flex items-center gap-1.5" href="#duel-preview">
+<span class="w-1.5 h-1.5 rounded-full bg-[#FDDF49] animate-pulse"></span>Live Arena
+</a>
+<a class="hover:text-white transition-colors" href="#protocols">Protocols</a>
+<a class="hover:text-white transition-colors" href="#benchmarks">Telemetry</a>
+<a class="hover:text-white transition-colors" href="#features">Engine</a>
+</nav>
+<!-- Auth actions -->
+<div class="flex items-center gap-3">
+<button class="text-xs font-semibold px-3 py-2 text-slate-300 hover:text-white transition-colors font-mono">
+  Sign In
+</button>
+<a class="px-4 py-2 rounded-lg bg-[#FDDF49] text-black font-extrabold text-xs tracking-wide hover:bg-[#E5C93F] transition-all shadow-[0_0_18px_rgba(253,223,73,0.3)] active:scale-95 flex items-center gap-1.5 font-mono" href="#duel-preview">
+<span>Find 1v1 Match</span>
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+</a>
+</div>
+</div>
+</header>
+<!-- END: MainHeader -->
+<main class="flex-1 relative z-10">
+<!-- ==========================================
+     PAGE 1: IMPACTFUL FIRST HERO SCREEN
+     (Full-viewport introduction with combat stats)
+     ========================================== -->
+<section class="min-h-[calc(100vh-64px)] flex flex-col justify-between items-center relative text-center px-4 pt-12 pb-8 overflow-hidden" id="page-hero">
+<div class="w-full max-w-5xl mx-auto flex-1 flex flex-col justify-center items-center my-auto">
+<!-- Live Arena Protocol Badge -->
+<div class="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#111722]/90 border border-[#232F45] text-xs font-medium text-slate-300 mb-8 backdrop-blur shadow-lg">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FDDF49] opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-[#FDDF49]"></span>
+</span>
+<span class="text-[#FDDF49] font-mono font-bold uppercase tracking-wider text-[11px]">Ranked Season 04 Open</span>
+<span class="text-slate-600">|</span>
+<span class="font-mono text-cyan-400 text-[11px] flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>482 Matches Battling Live
+      </span>
+</div>
+<!-- Main Esports Headline -->
+<h1 class="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white max-w-4xl mx-auto leading-[1.08] mb-6">
+      Code Fast. Duel Hard. <br>
+<span class="text-[#FDDF49] text-glow-yellow">Rise to Grandmaster.</span>
+</h1>
+<!-- Description Subtitle -->
+<p class="max-w-2xl mx-auto text-slate-300/90 text-sm sm:text-base md:text-lg leading-relaxed mb-10 font-normal">
+      The ultra-low latency algorithm esports arena for competitive software engineers. Duel 1v1 in rapid algorithmic sprints, crush rivals with O(N) elegance, and climb international Elo tiers on bare-metal sandboxes.
+    </p>
+<!-- Glowing Hero Call-To-Actions -->
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto mb-12">
+<a class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#FDDF49] hover:bg-[#E5C93F] text-black font-black text-sm tracking-wide shadow-[0_0_28px_rgba(253,223,73,0.35)] hover:shadow-[0_0_36px_rgba(253,223,73,0.5)] transition-all flex items-center justify-center gap-2.5 group active:scale-95 font-mono" href="#duel-preview">
+<svg class="w-4 h-4 text-black group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+<span>FIND 1v1 DUEL MATCH</span>
+<span class="text-[11px] bg-black/20 text-black px-1.5 py-0.5 rounded font-mono font-bold">~12s queue</span>
+</a>
+<a class="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-[#111722]/80 hover:bg-[#182130] text-slate-200 border border-[#232F42] hover:border-cyan-400/40 text-sm font-bold transition-all flex items-center justify-center gap-2.5 backdrop-blur font-mono group" href="#duel-preview">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+</span>
+<span>Watch Arena Stream</span>
+<span class="text-xs text-slate-400 font-normal font-sans group-hover:text-cyan-300">(v0id_runner vs KN)</span>
+</a>
+</div>
+<!-- Live Duel Stats & Social Proof Ribbon -->
+<div class="flex flex-wrap items-center justify-center gap-y-3 gap-x-6 text-xs text-slate-400 font-mono py-2.5 px-5 rounded-2xl bg-[#0D121B]/70 border border-[#1C2536] backdrop-blur max-w-3xl">
+<div class="flex items-center gap-2">
+<div class="flex -space-x-1.5">
+<div class="h-5 w-5 rounded-full ring-1 ring-black bg-slate-700 text-[9px] font-bold text-white flex items-center justify-center">MIT</div>
+<div class="h-5 w-5 rounded-full ring-1 ring-black bg-[#FDDF49] text-[9px] font-black text-black flex items-center justify-center">G</div>
+<div class="h-5 w-5 rounded-full ring-1 ring-black bg-cyan-400 text-[9px] font-black text-black flex items-center justify-center">META</div>
+</div>
+<span class="text-slate-300 font-semibold">14,280+ Active Elo Gladiators</span>
+</div>
+<span class="text-slate-600 hidden sm:inline">•</span>
+<div class="flex items-center gap-1.5 text-amber-400">
+<span>★★★★★</span>
+<span class="text-slate-200 font-bold">4.9/5 Rating</span>
+</div>
+<span class="text-slate-600 hidden sm:inline">•</span>
+<div class="text-cyan-400 flex items-center gap-1">
+<span>⚡ 18ms Avg Test Latency</span>
+</div>
+</div>
+</div>
+<!-- Intuitive 'Scroll to Arena' Anchor Cue -->
+<div class="w-full pt-4 pb-2 flex flex-col items-center justify-center">
+<a class="group flex flex-col items-center gap-1.5 text-slate-400 hover:text-[#FDDF49] transition-colors" href="#duel-preview">
+<span class="text-[11px] font-mono tracking-widest uppercase font-semibold text-slate-400 group-hover:text-[#FDDF49]">Scroll to Live Arena</span>
+<div class="w-6 h-9 rounded-full border border-slate-700 group-hover:border-[#FDDF49] flex items-start justify-center p-1.5 transition-colors">
+<div class="w-1.5 h-2.5 rounded-full bg-[#FDDF49] animate-bounce"></div>
+</div>
+</a>
+</div>
+</section>
+<!-- END: HeroSection -->
+<!-- ==========================================
+     PAGE 2: DEDICATED 1V1 DUEL ARENA SECTION
+     (Unobstructed battleground, telemetry & chat)
+     ========================================== -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-24 scroll-mt-14 relative" id="duel-preview">
+<!-- Arena Section Title Banner -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 mb-4 border-b border-[#1A2333] gap-3">
+<div>
+<div class="flex items-center gap-2 font-mono text-xs text-[#FDDF49]">
+<span class="w-2 h-2 rounded-full bg-[#FDDF49] animate-pulse"></span>
+<span class="uppercase tracking-widest font-bold">Live Combat Node: Cluster-US-East-04</span>
+</div>
+<h2 class="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5">
+        Ranked 1v1 Battleground: Immortal Tier Match
+      </h2>
+</div>
+<div class="flex items-center gap-3">
+<div class="px-3 py-1 rounded bg-[#101622] border border-[#222E42] text-[11px] font-mono text-slate-300 flex items-center gap-2">
+<span class="text-slate-500">SPECTATING:</span>
+<span class="text-cyan-400 font-bold">342 Live Coders</span>
+</div>
+<button class="px-3 py-1 bg-[#1A2232] hover:bg-[#253147] text-slate-200 border border-[#2C3B54] rounded text-xs font-mono font-semibold transition flex items-center gap-1.5" onclick="toggleChatDrawer()">
+<svg class="w-3.5 h-3.5 text-[#FDDF49]" fill="currentColor" viewBox="0 0 20 20"><path d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zm-4 0h-2v2h2V9z"></path></svg>
+<span>Toggle Match Chat</span>
+</button>
+</div>
+</div>
+<!-- Arena Container Card -->
+<div class="bg-[#0C1017] border border-[#1E2738] rounded-2xl overflow-hidden shadow-2xl relative card-matrix-glow">
+<!-- 1v1 DUEL MATCH HEADER: PROMINENT VS MATCHUP BAR -->
+<div class="bg-[#090D14] border-b border-[#1E2738] px-4 py-3 sm:px-6">
+<div class="flex flex-col md:flex-row items-center justify-between gap-4">
+<!-- Left Gladiator (YOU: v0id_runner) -->
+<div class="flex items-center gap-3 w-full md:w-auto justify-start">
+<div class="relative">
+<div class="w-11 h-11 rounded-xl bg-[#FDDF49]/15 border-2 border-[#FDDF49]/50 flex items-center justify-center font-mono font-black text-[#FDDF49] text-base shadow-[0_0_15px_rgba(253,223,73,0.25)]">
+              VR
+            </div>
+<span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#090D14]"></span>
+</div>
+<div class="text-left">
+<div class="flex items-center gap-2">
+<span class="font-bold text-white text-sm sm:text-base tracking-tight font-mono">v0id_runner</span>
+<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#FDDF49]/15 text-[#FDDF49] border border-[#FDDF49]/40 font-bold uppercase tracking-wider">IMMORTAL 3</span>
+<span class="text-[11px] text-slate-400 font-mono">2,340 RR</span>
+</div>
+<div class="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+<span class="inline-flex items-center gap-1 text-emerald-400 text-[11px] font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>14ms ping</span>
+<span>•</span>
+<span class="text-[#FDDF49] font-medium">Status: Typing line 12...</span>
+</div>
+</div>
+</div>
+<!-- Center Duel VS Badge & Timer -->
+<div class="flex flex-col items-center justify-center px-6 py-2 bg-[#06080C] rounded-xl border border-[#222E42] min-w-[230px] shadow-inner">
+<div class="flex items-center gap-3">
+<span class="text-xs font-black tracking-widest text-[#FDDF49] px-2 py-0.5 rounded bg-[#FDDF49]/10 border border-[#FDDF49]/30">VS</span>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+<span class="text-white font-mono font-black text-base tracking-widest" id="duel-timer">04:52</span>
+<span class="text-[10px] font-bold text-rose-400 uppercase tracking-wider">LEFT</span>
+</div>
+</div>
+<div class="mt-1 flex items-center gap-2 text-[10px] font-mono">
+<span class="text-[#FDDF49] font-bold">+32 RR</span>
+<span class="text-slate-600">/</span>
+<span class="text-rose-400 font-bold">-22 RR</span>
+<span class="text-slate-500">•</span>
+<span class="text-slate-400 uppercase tracking-wider font-semibold">Ranked 1v1 Sprint</span>
+</div>
+</div>
+<!-- Right Gladiator (OPPONENT: KageNinja_99) -->
+<div class="flex items-center gap-3 w-full md:w-auto justify-end">
+<div class="text-right">
+<div class="flex items-center justify-end gap-2">
+<span class="text-[11px] text-slate-400 font-mono">2,385 RR</span>
+<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 font-bold uppercase tracking-wider">IMMORTAL 2</span>
+<span class="font-bold text-slate-200 text-sm sm:text-base tracking-tight font-mono">KageNinja_99</span>
+</div>
+<div class="flex items-center justify-end gap-2 text-xs text-slate-400 font-mono mt-0.5">
+<span class="text-amber-400 font-medium">Status: Passing 2/3 tests</span>
+<span>•</span>
+<span class="inline-flex items-center gap-1 text-slate-400 text-[11px]"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>22ms ping</span>
+</div>
+</div>
+<div class="relative">
+<div class="w-11 h-11 rounded-xl bg-cyan-500/15 border-2 border-cyan-500/50 flex items-center justify-center font-mono font-black text-cyan-400 text-base shadow-[0_0_15px_rgba(0,229,255,0.25)]">
+              KN
+            </div>
+<span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#090D14]"></span>
+</div>
+</div>
+</div>
+</div>
+<!-- HEAD-TO-HEAD DUEL PROGRESS & RACE BAR -->
+<div class="bg-[#080B10] px-4 py-3 border-b border-[#1E2738]">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Your Race Bar -->
+
+<!-- Opponent Race Bar -->
+
+</div>
+</div>
+<!-- 2-PANEL 1v1 DUEL ARENA WORKSPACE -->
+<div class="grid grid-cols-1 lg:grid-cols-12 min-h-[560px]">
+<!-- LEFT COLUMN: Problem & Specifications (5 Cols) -->
+<div class="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-[#1E2738] flex flex-col bg-[#0A0E15]">
+<!-- Problem Title Bar -->
+<div class="px-4 py-3 bg-[#101520] border-b border-[#1E2738] flex items-center justify-between text-xs">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-amber-400"></span>
+<span class="font-bold text-white font-mono text-sm">Problem 402: Two-Sum Lease Fence</span>
+</div>
+<span class="text-[10px] px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold font-mono">Medium • 100 Pts</span>
+</div>
+<!-- Scrollable Problem Statement -->
+<div class="p-4 sm:p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4 text-xs sm:text-[13px] leading-relaxed text-slate-300">
+<p>
+            Given an array of microsecond heartbeat timestamps <code class="bg-[#151D2A] text-[#FDDF49] px-1.5 py-0.5 rounded font-mono text-xs">nodes</code> and an integer <code class="bg-[#151D2A] text-[#FDDF49] px-1.5 py-0.5 rounded font-mono text-xs">targetQuorum</code>, return the indices of two node clusters that together satisfy the quorum requirement.
+          </p>
+<!-- Example 1 -->
+<div class="bg-[#101622] p-3.5 rounded-xl border border-[#1E293B] space-y-1.5 font-mono text-xs">
+<div class="text-slate-400 font-sans text-xs font-bold mb-1 flex items-center justify-between">
+<span class="text-white">Example 1:</span>
+<span class="text-[10px] text-cyan-400 font-mono">Target: O(N) Complexity</span>
+</div>
+<div><span class="text-slate-500">Input:</span> nodes = [2, 7, 11, 15], target = 9</div>
+<div><span class="text-slate-500">Output:</span> <span class="text-emerald-400 font-bold">[0, 1]</span></div>
+<div class="text-[11px] text-slate-400 font-sans mt-1">Explanation: nodes[0] + nodes[1] == 9, returning [0, 1].</div>
+</div>
+<!-- Sample Test Cases Selector -->
+<div class="pt-2">
+<div class="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider font-sans flex items-center justify-between">
+<span>Sample Test Cases</span>
+<span class="text-[10px] text-[#FDDF49] font-mono font-semibold">PRE-VALIDATED SANDBOX</span>
+</div>
+<div class="flex gap-2" id="test-case-tabs">
+<button class="px-3 py-1 text-xs rounded-lg font-mono bg-[#1E293B] text-white border border-[#2E3E58] shadow" id="tab-tc-1" onclick="switchTestCase(1)">Case 1</button>
+<button class="px-3 py-1 text-xs rounded-lg font-mono bg-transparent text-slate-400 hover:bg-[#141C28] border border-transparent" id="tab-tc-2" onclick="switchTestCase(2)">Case 2</button>
+<button class="px-3 py-1 text-xs rounded-lg font-mono bg-transparent text-slate-400 hover:bg-[#141C28] border border-transparent" id="tab-tc-3" onclick="switchTestCase(3)">Case 3</button>
+</div>
+<div class="mt-2.5 p-3 bg-[#07090E] rounded-xl border border-[#1A2333] font-mono text-xs space-y-1.5" id="tc-content">
+<div class="text-slate-300"><span class="text-slate-500">nums =</span> [2, 7, 11, 15]</div>
+<div class="text-slate-300"><span class="text-slate-500">target =</span> 9</div>
+</div>
+</div>
+<!-- Constraints -->
+<div class="space-y-1.5 pt-3 border-t border-[#1A2333]">
+<div class="text-xs font-bold text-slate-300 uppercase tracking-wider font-sans">Constraints</div>
+<ul class="list-none space-y-1.5 text-xs font-mono text-slate-400">
+<li class="flex items-center gap-2"><span class="text-[#FDDF49]">•</span> <code>2 ≤ nodes.length ≤ 10<sup>4</sup></code></li>
+<li class="flex items-center gap-2"><span class="text-[#FDDF49]">•</span> <code>-10<sup>9</sup> ≤ nodes[i] ≤ 10<sup>9</sup></code></li>
+<li class="flex items-center gap-2"><span class="text-[#FDDF49]">•</span> <code>-10<sup>9</sup> ≤ targetQuorum ≤ 10<sup>9</sup></code></li>
+<li class="flex items-center gap-2"><span class="text-emerald-400">✓</span> Exactly one valid quorum solution exists.</li>
+</ul>
+</div>
+</div>
+<!-- Duel Rule Footer -->
+<div class="px-4 py-2.5 bg-[#101520] border-t border-[#1E2738] text-xs flex items-center justify-between text-slate-400 font-mono">
+<span class="flex items-center gap-1.5 text-slate-300">
+<span class="text-[#FDDF49]">⚡</span> First to 3/3 tests or fastest microsecond runtime takes +32 RR
+          </span>
+</div>
+</div>
+<!-- RIGHT COLUMN: Your Live Code Editor (7 Cols) -->
+<div class="lg:col-span-7 flex flex-col bg-[#07090E]">
+<!-- Editor Controls Header -->
+<div class="px-4 py-2.5 bg-[#101520] border-b border-[#1E2738] flex items-center justify-between gap-2 flex-wrap"><div class="flex items-center gap-2 flex-wrap"><div class="flex items-center bg-[#070A0F] p-0.5 rounded-lg border border-[#1E283A] text-xs font-mono"><button id="editor-tab-code" onclick="document.getElementById('editor-view-code').classList.remove('hidden'); document.getElementById('editor-view-chat').classList.add('hidden'); this.className='flex items-center gap-1.5 px-3 py-1 rounded bg-[#1A2333] text-white font-bold shadow-sm border border-[#2E3E58]'; document.getElementById('editor-tab-chat').className='flex items-center gap-1.5 px-3 py-1 rounded text-slate-400 hover:text-white hover:bg-[#141C28] transition';" class="flex items-center gap-1.5 px-3 py-1 rounded bg-[#1A2333] text-white font-bold shadow-sm border border-[#2E3E58]"><svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg><span>arena_solution.py</span></button><button id="editor-tab-chat" onclick="document.getElementById('editor-view-code').classList.add('hidden'); document.getElementById('editor-view-chat').classList.remove('hidden'); this.className='flex items-center gap-1.5 px-3 py-1 rounded bg-[#1A2333] text-[#FDDF49] font-bold shadow-sm border border-[#2E3E58]'; document.getElementById('editor-tab-code').className='flex items-center gap-1.5 px-3 py-1 rounded text-slate-400 hover:text-white hover:bg-[#141C28] transition';" class="flex items-center gap-1.5 px-3 py-1 rounded text-slate-400 hover:text-white hover:bg-[#141C28] transition"><svg class="w-3.5 h-3.5 text-[#FDDF49]" fill="currentColor" viewBox="0 0 20 20"><path d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z"></path></svg><span>Duel Chat</span><span class="px-1.5 py-0.2 rounded-full bg-[#FDDF49] text-black text-[9px] font-extrabold">2</span></button></div><select class="bg-[#17202E] text-white text-xs border border-[#26354B] rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-[#FDDF49] focus:outline-none cursor-pointer font-mono font-semibold" id="lang-selector" onchange="changeLanguage()"><option value="python">Python 3.11</option><option value="rust">Rust 1.76</option><option value="javascript">JavaScript ES2024</option></select></div><div class="flex items-center gap-2"><button class="p-1.5 text-slate-400 hover:text-white hover:bg-[#1A2230] rounded-lg transition" onclick="resetCode()" title="Reset to template"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg></button><button class="px-3 py-1.5 bg-[#1B2433] hover:bg-[#253246] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-[#2A394E]" id="btn-run" onclick="runCode()"><svg class="w-3.5 h-3.5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" fill-rule="evenodd"></path></svg><span>Run Tests</span></button><button class="px-4 py-1.5 bg-[#FDDF49] hover:bg-[#E5C93F] text-black rounded-lg text-xs font-black flex items-center gap-1.5 transition shadow-[0_0_12px_rgba(253,223,73,0.3)] active:scale-95 font-mono" id="btn-submit" onclick="submitCode()"><svg class="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg><span>Submit</span></button></div></div>
+<!-- Code Text Area with Line Number Simulation -->
+<div class="relative flex-1 font-mono text-xs flex bg-[#07090D] overflow-hidden min-h-[380px] lg:min-h-[460px]" id="editor-view-code">
+<div class="py-3 px-2 text-right select-none text-slate-600 bg-[#07090D] border-r border-[#161F2C] w-10 flex flex-col space-y-1 font-mono text-xs">
+<span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+<span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+<span>11</span><span>12</span><span>13</span><span>14</span><span>15</span>
+<span>16</span><span>17</span><span>18</span><span>19</span><span>20</span>
+</div>
+<textarea class="w-full h-full bg-transparent text-slate-100 p-3.5 font-mono text-[13px] leading-[22px] focus:outline-none resize-none border-0 custom-scrollbar selection:bg-[#FDDF49]/25 selection:text-[#FDDF49]" id="code-editor" aria-label="Python solution editor" wrap="off" spellcheck="false"></textarea>
+</div><div id="editor-view-chat" class="hidden flex-1 flex flex-col bg-[#070A0F] min-h-[380px] lg:min-h-[460px] font-sans"><div class="px-4 py-2 bg-[#0E131E] border-b border-[#1A2333] flex items-center justify-between shrink-0"><div class="flex items-center gap-2.5"><div class="relative"><div class="w-7 h-7 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-400 font-mono font-bold text-xs flex items-center justify-center">KN</div><span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-[#0E131E]"></span></div><div class="flex items-center gap-2"><span class="font-bold text-white text-xs font-mono">@KageNinja_99</span><span class="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono font-bold">IMMORTAL 2</span><span class="inline-flex items-center gap-1 text-emerald-400 text-[10px] font-mono"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>22ms</span><span class="text-slate-500 text-xs">•</span><span class="text-slate-400 text-[10px] font-mono">Passing 2/3 tests</span></div></div><div class="flex items-center gap-2"><span class="text-[10px] font-mono text-slate-500">Audio/Text Channel #402</span><button class="px-2.5 py-1 rounded bg-[#17202F] hover:bg-[#202B3E] text-[10px] text-slate-300 border border-[#27364D] transition flex items-center gap-1 font-mono"><span>+ Add Friend</span></button></div></div><div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-3" id="chat-messages-container"><div class="flex items-start gap-2.5"><div class="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold font-mono flex items-center justify-center shrink-0 mt-0.5">KN</div><div class="flex-1"><div class="flex items-baseline gap-1.5 mb-1"><span class="text-xs font-semibold text-cyan-400 font-mono">KageNinja_99</span><span class="text-[9px] text-slate-500 font-mono">06:42</span></div><div class="inline-block bg-[#121824] border border-[#1F293A] text-slate-200 text-xs px-3 py-2 rounded-xl rounded-tl-none font-sans leading-relaxed shadow-sm">gl hf! let's see who clears tests first ⚔️</div></div></div><div class="flex items-start gap-2.5 justify-end"><div class="flex-1 flex flex-col items-end"><div class="flex items-baseline gap-1.5 mb-1"><span class="text-[9px] text-slate-500 font-mono">06:38</span><span class="text-xs font-semibold text-[#FDDF49] font-mono">v0id_runner (You)</span></div><div class="inline-block bg-[#1A2435] border border-[#2B3B54] text-white text-xs px-3 py-2 rounded-xl rounded-tr-none font-sans leading-relaxed text-right shadow-sm">gl! watch out for edge case 3</div></div><div class="w-6 h-6 rounded bg-[#FDDF49]/15 border border-[#FDDF49]/40 text-[#FDDF49] text-[10px] font-bold font-mono flex items-center justify-center shrink-0 mt-0.5">VR</div></div><div class="flex items-start gap-2.5"><div class="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold font-mono flex items-center justify-center shrink-0 mt-0.5">KN</div><div class="flex-1"><div class="flex items-baseline gap-1.5 mb-1"><span class="text-xs font-semibold text-cyan-400 font-mono">KageNinja_99</span><span class="text-[9px] text-slate-500 font-mono">06:21</span></div><div class="inline-block bg-[#121824] border border-[#1F293A] text-slate-200 text-xs px-3 py-2 rounded-xl rounded-tl-none font-sans leading-relaxed shadow-sm">almost done with 2/3 tests, O(N) lookup</div></div></div><div class="flex items-center justify-center my-1.5"><div class="px-3 py-1 rounded-full bg-[#121824] border border-[#1E283A] text-[10px] font-mono text-amber-400 flex items-center gap-1.5 shadow-sm"><span>⚡</span><span class="text-slate-300">KageNinja_99 submitted test suite</span><span class="text-emerald-400 font-semibold">(2/3 passed)</span></div></div></div><div class="p-3 bg-[#0C1017] border-t border-[#1A2333] shrink-0"><div class="flex items-center gap-1.5 mb-2.5 overflow-x-auto custom-scrollbar pb-1 text-[10px] font-mono"><span class="text-slate-500 text-[9px] uppercase tracking-wider shrink-0 mr-1">Tactical:</span><button class="px-2.5 py-0.5 rounded-full bg-[#162030] hover:bg-[#202C42] text-slate-300 border border-[#25344C] transition whitespace-nowrap shrink-0 hover:text-white" onclick="sendQuickChat('gl hf!')">gl hf!</button><button class="px-2.5 py-0.5 rounded-full bg-[#162030] hover:bg-[#202C42] text-slate-300 border border-[#25344C] transition whitespace-nowrap shrink-0 hover:text-white" onclick="sendQuickChat('nice one!')">nice one!</button><button class="px-2.5 py-0.5 rounded-full bg-[#162030] hover:bg-[#202C42] text-slate-300 border border-[#25344C] transition whitespace-nowrap shrink-0 hover:text-white" onclick="sendQuickChat('O(N) gang ⚡')">O(N) gang ⚡</button><button class="px-2.5 py-0.5 rounded-full bg-[#162030] hover:bg-[#202C42] text-[#FDDF49] border border-[#FDDF49]/40 transition whitespace-nowrap shrink-0" onclick="sendQuickChat('rematch?')">rematch?</button></div><form class="flex items-center gap-2" id="duel-chat-form" onsubmit="submitChatMessage(event)"><input autocomplete="off" class="flex-1 bg-[#070A0F] text-slate-100 placeholder-slate-500 text-xs px-3.5 py-2 rounded-lg border border-[#232F45] focus:outline-none focus:ring-1 focus:ring-[#FDDF49] font-sans transition" id="duel-chat-input" placeholder="Message opponent (Enter to send)..." type="text"><button class="px-3.5 py-2 bg-[#FDDF49] hover:bg-[#E5C93F] text-black font-extrabold text-xs rounded-lg transition flex items-center gap-1.5 shrink-0 shadow-[0_0_12px_rgba(253,223,73,0.2)] active:scale-95 font-mono" type="submit"><span>Send</span><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg></button></form></div></div>
+<!-- Result Banner & Sandbox Status -->
+<div class="p-3 bg-[#0C1118] border-t border-[#1E2738] flex items-center justify-between text-xs" id="duel-result-bar">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34D399]" id="result-status-icon"></span>
+<span class="font-bold text-emerald-400 font-mono" id="result-status-text">Passed (2/3 Sample Tests)</span>
+<span class="text-slate-600">•</span>
+<span class="text-slate-400 font-mono text-xs" id="result-metrics">Runtime: 18ms | Memory: 14.2 MB</span>
+</div>
+<div class="text-xs text-slate-400 font-mono hidden sm:block">
+            Docker Sandbox: <span class="text-[#FDDF49] font-bold">alpine-3.19 (isolated)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Tips Below Playground -->
+<div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 px-2 font-mono">
+<div class="flex items-center gap-3">
+<span>Shortcuts: <kbd class="px-1.5 py-0.5 rounded bg-[#161D29] text-slate-300 border border-[#253245]">Ctrl</kbd> + <kbd class="px-1.5 py-0.5 rounded bg-[#161D29] text-slate-300 border border-[#253245]">Enter</kbd> to Run</span>
+<span class="text-slate-600">|</span>
+<span><kbd class="px-1.5 py-0.5 rounded bg-[#161D29] text-slate-300 border border-[#253245]">Ctrl</kbd> + <kbd class="px-1.5 py-0.5 rounded bg-[#161D29] text-slate-300 border border-[#253245]">M</kbd> Toggle Chat</span>
+</div>
+<div class="text-cyan-400 flex items-center gap-1 font-mono">
+<span>⚡ Ephemeral micro-VM cold boot: 32ms</span>
+</div>
+</div>
+</section>
+<!-- END: SimplifiedLiveDuelSection -->
+<!-- BEGIN: FloatingChatTriggerButton -->
+
+<!-- END: FloatingChatTriggerButton -->
+<!-- BEGIN: CollapsibleChatSideDrawer -->
+<!-- Drawer Backdrop -->
+
+<!-- Slide-over Drawer Panel -->
+
+<!-- END: CollapsibleChatSideDrawer -->
+<!-- ==========================================
+     SUBSEQUENT SECTIONS: METRICS, PROTOCOLS, CTA
+     ========================================== -->
+<!-- BEGIN: KeyMetricsSection -->
+<section class="border-y border-[#1A2333] bg-[#090D14]/80 py-14 px-4 mb-24 relative" id="benchmarks">
+<div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center md:text-left">
+<div class="border-l-2 border-slate-700/60 pl-4">
+<div class="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight">1.24M+</div>
+<p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider font-mono">Docker Tests Executed</p>
+<span class="text-xs text-slate-400 font-sans">Across 14 sandbox runtimes</span>
+</div>
+<div class="border-l-2 border-[#FDDF49] pl-4">
+<div class="text-3xl sm:text-4xl font-black text-[#FDDF49] font-mono tracking-tight text-glow-yellow">45,200+</div>
+<p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider font-mono">Ranked Duellists</p>
+<span class="text-xs text-slate-400 font-sans">Active Elo combatants</span>
+</div>
+<div class="border-l-2 border-cyan-400 pl-4">
+<div class="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight text-glow-cyan">99.98%</div>
+<p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider font-mono">Sandbox Isolation SLA</p>
+<span class="text-xs text-slate-400 font-sans">Sub-50ms cold boots</span>
+</div>
+<div class="border-l-2 border-slate-700/60 pl-4">
+<div class="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight">$50,000</div>
+<p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider font-mono">Season 04 Prize Pool</p>
+<span class="text-xs text-slate-400 font-sans">Grandmaster Finals Dec 2025</span>
+</div>
+</div>
+</section>
+<!-- END: KeyMetricsSection -->
+<!-- BEGIN: FeaturesSection -->
+<section class="max-w-6xl mx-auto px-4 sm:px-6 mb-24" id="features">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<span class="text-xs font-extrabold text-[#FDDF49] uppercase tracking-widest font-mono">Esports Infrastructure</span>
+<h2 class="text-2xl sm:text-4xl font-black text-white mt-2 mb-3 tracking-tight">
+      Engineered Like an Esports Engine.<br class="hidden sm:block"> Powered by Production Runtimes.
+    </h2>
+<p class="text-slate-400 text-sm">
+      Ditch sluggish browser interpreters. Every single line runs in zero-trust, ultra-fast bare metal micro-vms.
+    </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Feature Card 1 -->
+<div class="bg-[#0D121B] border border-[#1F293A] rounded-2xl p-6 hover:border-[#FDDF49]/50 hover:shadow-[0_0_25px_rgba(253,223,73,0.12)] transition-all group">
+<div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[#FDDF49] flex items-center justify-center mb-5 group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<h3 class="text-base font-bold text-white mb-2">Sub-50ms Docker Sandbox</h3>
+<p class="text-xs text-slate-400 leading-relaxed mb-4">
+        Zero-latency containerized execution for Python, C++, Rust, and Go. Ephemeral sandboxes boot under 40 milliseconds with microsecond execution telemetry.
+      </p>
+<a class="inline-flex items-center gap-1 text-xs font-bold text-[#FDDF49] hover:underline font-mono" href="#">
+        Explore Benchmark Stats →
+      </a>
+</div>
+<!-- Feature Card 2 -->
+<div class="bg-[#0D121B] border border-[#1F293A] rounded-2xl p-6 hover:border-cyan-400/50 hover:shadow-[0_0_25px_rgba(0,229,255,0.12)] transition-all group">
+<div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center mb-5 group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<h3 class="text-base font-bold text-white mb-2">Ranked 1v1 &amp; 2v2 Co-Op Battles</h3>
+<p class="text-xs text-slate-400 leading-relaxed mb-4">
+        True competitive matchmaking using Glicko-2 ratings. Engage in Solo Duels, Driver &amp; Navigator split-keyboard team matches, or intense 5-minute scrambles.
+      </p>
+<a class="inline-flex items-center gap-1 text-xs font-bold text-cyan-400 hover:underline font-mono" href="#">
+        View Ranking Tiers →
+      </a>
+</div>
+<!-- Feature Card 3 -->
+<div class="bg-[#0D121B] border border-[#1F293A] rounded-2xl p-6 hover:border-[#FDDF49]/50 hover:shadow-[0_0_25px_rgba(253,223,73,0.12)] transition-all group">
+<div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[#FDDF49] flex items-center justify-center mb-5 group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<h3 class="text-base font-bold text-white mb-2">LangChain AI Code Verdict</h3>
+<p class="text-xs text-slate-400 leading-relaxed mb-4">
+        Post-match deep breakdowns powered by tuned LLM arbiters. Receive instant big-O asymptotic proofs, maintainability scores, and AST refactor diffs side-by-side.
+      </p>
+<a class="inline-flex items-center gap-1 text-xs font-bold text-[#FDDF49] hover:underline font-mono" href="#">
+        Read Evaluation Specs →
+      </a>
+</div>
+</div>
+</section>
+<!-- END: FeaturesSection -->
+<!-- BEGIN: ArenaProtocolsSection -->
+<section class="max-w-6xl mx-auto px-4 sm:px-6 mb-24" id="protocols">
+<div class="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+<div>
+<span class="text-xs font-extrabold text-[#FDDF49] uppercase tracking-widest font-mono">Arena Protocols</span>
+<h2 class="text-2xl sm:text-3xl font-black text-white mt-1">Choose Your Match Type</h2>
+</div>
+<a class="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 font-mono" href="#">
+      Browse all custom lobby presets ↗
+    </a>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Mode 1 -->
+<div class="bg-[#0C1017] border border-[#1E2738] p-5 rounded-xl flex flex-col justify-between hover:border-[#FDDF49]/40 transition">
+<div>
+<div class="flex items-center justify-between mb-3">
+<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-[#FDDF49]/15 text-[#FDDF49] border border-[#FDDF49]/30 font-mono">1V1 RANKED</span>
+<span class="text-slate-400 text-xs">👤</span>
+</div>
+<h3 class="text-sm font-bold text-white mb-1.5">Ranked 1v1 Duel</h3>
+<p class="text-xs text-slate-400 leading-relaxed">
+          Head-to-head algorithm battles. Equal test cases, live keystroke mirror, first to 100% test pass takes Elo.
+        </p>
+</div>
+<div class="mt-6 pt-3 border-t border-[#192130] flex justify-between text-[11px] font-mono text-slate-400">
+<span>Avg Wait: 12s</span>
+<span class="text-slate-300 font-semibold">15 Min Cap</span>
+</div>
+</div>
+<!-- Mode 2 -->
+<div class="bg-[#0C1017] border border-[#1E2738] p-5 rounded-xl flex flex-col justify-between hover:border-cyan-400/40 transition">
+<div>
+<div class="flex items-center justify-between mb-3">
+<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono">2V2 SQUAD</span>
+<span class="text-slate-400 text-xs">👥</span>
+</div>
+<h3 class="text-sm font-bold text-white mb-1.5">2v2 Co-Op Marathon</h3>
+<p class="text-xs text-slate-400 leading-relaxed">
+          Driver &amp; Navigator team format. Roles swap every 3 minutes. Test passes require dual confirmation.
+        </p>
+</div>
+<div class="mt-6 pt-3 border-t border-[#192130] flex justify-between text-[11px] font-mono text-slate-400">
+<span>Avg Wait: 32s</span>
+<span class="text-slate-300 font-semibold">25 Min Cap</span>
+</div>
+</div>
+<!-- Mode 3 -->
+<div class="bg-[#0C1017] border border-[#1E2738] p-5 rounded-xl flex flex-col justify-between hover:border-rose-500/40 transition">
+<div>
+<div class="flex items-center justify-between mb-3">
+<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 font-mono">RAPID FIRE</span>
+<span class="text-slate-400 text-xs">⚡</span>
+</div>
+<h3 class="text-sm font-bold text-white mb-1.5">Debug Duel (Speed Run)</h3>
+<p class="text-xs text-slate-400 leading-relaxed">
+          Inherit production repos with 4 failing integration tests. Pinpoint race conditions and deadlocks before time zeroes.
+        </p>
+</div>
+<div class="mt-6 pt-3 border-t border-[#192130] flex justify-between text-[11px] font-mono text-slate-400">
+<span>Avg Wait: 8s</span>
+<span class="text-rose-400 font-semibold">5 Min Blitz</span>
+</div>
+</div>
+<!-- Mode 4 -->
+<div class="bg-[#0C1017] border border-[#1E2738] p-5 rounded-xl flex flex-col justify-between hover:border-purple-500/40 transition">
+<div>
+<div class="flex items-center justify-between mb-3">
+<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/30 font-mono">DATA SCALE</span>
+<span class="text-slate-400 text-xs">🗄️</span>
+</div>
+<h3 class="text-sm font-bold text-white mb-1.5">SQL Database Clash</h3>
+<p class="text-xs text-slate-400 leading-relaxed">
+          Optimize slow queries and construct complex analytical CTEs over 10-million row synthetic shards in real time.
+        </p>
+</div>
+<div class="mt-6 pt-3 border-t border-[#192130] flex justify-between text-[11px] font-mono text-slate-400">
+<span>Avg Wait: 45s</span>
+<span class="text-slate-300 font-semibold">12 Min Cap</span>
+</div>
+</div>
+</div>
+</section>
+<!-- END: ArenaProtocolsSection -->
+<!-- BEGIN: FinalCTA -->
+<section class="max-w-4xl mx-auto px-4 sm:px-6 mb-24 text-center">
+<div class="bg-gradient-to-b from-[#111724] to-[#0A0E15] border border-[#232F45] rounded-3xl p-8 sm:p-14 relative overflow-hidden shadow-2xl card-matrix-glow">
+<div class="absolute -top-12 -right-12 w-48 h-48 bg-[#FDDF49]/10 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute -bottom-12 -left-12 w-48 h-48 bg-cyan-400/10 rounded-full blur-3xl pointer-events-none"></div>
+<span class="text-xs font-mono font-bold text-[#FDDF49] uppercase tracking-widest">Season 04 Qualifiers Are Open</span>
+<h2 class="text-3xl sm:text-5xl font-black text-white mt-3 mb-4 tracking-tight">
+      Ready to Claim the Grandmaster Rank?
+    </h2>
+<p class="text-slate-300/80 text-sm max-w-xl mx-auto mb-8 font-normal leading-relaxed">
+      Join over 45,000 algorithmic gladiators right now. No setup required—step into your first ranked 1v1 duel in 30 seconds.
+    </p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-3.5">
+<a class="w-full sm:w-auto px-8 py-3.5 bg-[#FDDF49] hover:bg-[#E5C93F] text-black font-black text-sm rounded-xl transition shadow-[0_0_24px_rgba(253,223,73,0.3)] active:scale-95 font-mono" href="#duel-preview">
+        Enter Arena Free →
+      </a>
+<button class="w-full sm:w-auto px-6 py-3.5 bg-[#141C28] hover:bg-[#1D2738] text-slate-200 border border-[#29384E] text-sm font-bold rounded-xl transition flex items-center justify-center gap-2 font-mono">
+<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" fill-rule="evenodd"></path></svg>
+<span>GitHub Auth</span>
+</button>
+<button class="w-full sm:w-auto px-6 py-3.5 bg-[#141C28] hover:bg-[#1D2738] text-slate-200 border border-[#29384E] text-sm font-bold rounded-xl transition flex items-center justify-center gap-2 font-mono">
+<svg class="w-4 h-4" viewBox="0 0 24 24"><path d="M12.48 10.9v3.26h5.84c-.28 1.84-2.16 5.4-5.84 5.4-3.52 0-6.39-2.91-6.39-6.5s2.87-6.5 6.39-6.5c1.99 0 3.33.85 4.09 1.58l2.58-2.48C17.53 3.98 15.22 3 12.48 3 7.24 3 3 7.24 3 12.5s4.24 9.5 9.48 9.5c5.48 0 9.12-3.86 9.12-9.28 0-.62-.07-1.09-.16-1.57h-8.96z" fill="currentColor"></path></svg>
+<span>Google</span>
+</button>
+</div>
+<p class="text-[11px] text-slate-400 mt-6 font-mono">
+      Compliant with ACM-ICPC, Google HashCode, &amp; LeetCode contest formats. No credit card required.
+    </p>
+</div>
+</section>
+<!-- END: FinalCTA -->
+</main>
+<!-- BEGIN: MainFooter -->
+<footer class="border-t border-[#161F2E] bg-[#05070A] py-8 text-xs text-slate-400 relative z-10">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34D399]"></span>
+<span class="font-mono text-slate-400 font-semibold text-[11px]">ALL BATTLE NODES OPERATIONAL • CLUSTER US-EAST</span>
+</div>
+<div class="flex items-center gap-6 font-mono text-[11px]">
+<a class="hover:text-slate-200 transition-colors" href="#">Terms</a>
+<a class="hover:text-slate-200 transition-colors" href="#">Privacy</a>
+<a class="hover:text-slate-200 transition-colors" href="#">Rules of Engagement</a>
+<a class="hover:text-slate-200 transition-colors" href="#">API Docs</a>
+</div>
+<div class="font-mono text-[11px]">
+<span>© 2025 Code Arena (AlgoWars). All rights reserved.</span>
+</div>
+</div>
+</footer>
+<!-- END: MainFooter -->
+<!-- BEGIN: InteractivePlaygroundLogic -->
+<script data-purpose="live-playground-interactivity">
+    // Language Templates
+    const codeTemplates = {
+      python: `def two_sum_lease_fence(nodes: list[int], target: int) -> list[int]:
+    # Monotonic index hash lookup
+    seen = {}
+    for idx, num in enumerate(nodes):
+        complement = target - num
+        if complement in seen:
+            return [seen[complement], idx]
+        seen[num] = idx
+    return []`,
+      
+      rust: `impl Solution {
+    pub fn two_sum_lease_fence(nodes: Vec<i32>, target: i32) -> Vec<i32> {
+        use std::collections::HashMap;
+        let mut map = HashMap::new();
+        for (i, &num) in nodes.iter().enumerate() {
+            let comp = target - num;
+            if let Some(&prev) = map.get(&comp) {
+                return vec![prev as i32, i as i32];
+            }
+            map.insert(num, i);
+        }
+        vec![]
+    }
+}`,
+
+      javascript: `/**
+ * @param {number[]} nodes
+ * @param {number} target
+ * @return {number[]}
+ */
+var twoSumLeaseFence = function(nodes, target) {
+    const map = new Map();
+    for (let i = 0; i < nodes.length; i++) {
+        const comp = target - nodes[i];
+        if (map.has(comp)) {
+            return [map.get(comp), i];
+        }
+        map.set(nodes[i], i);
+    }
+    return [];
+};`
+    };
+
+    const testCases = {
+      1: { nums: '[2, 7, 11, 15]', target: '9' },
+      2: { nums: '[3, 2, 4]', target: '6' },
+      3: { nums: '[3, 3]', target: '6' }
+    };
+
+    const editor = document.getElementById('code-editor');
+    const langSelector = document.getElementById('lang-selector');
+
+    // Initialize with Python
+    if (editor) editor.value = codeTemplates.python;
+
+    function changeLanguage() {
+      const selected = langSelector.value;
+      editor.value = codeTemplates[selected] || '';
+    }
+
+    function resetCode() {
+      const selected = langSelector.value;
+      editor.value = codeTemplates[selected] || '';
+    }
+
+    function switchTestCase(num) {
+      for (let i = 1; i <= 3; i++) {
+        const tab = document.getElementById(`tab-tc-${i}`);
+        if (!tab) continue;
+        if (i === num) {
+          tab.className = 'px-3 py-1 text-xs rounded-lg font-mono bg-[#1E293B] text-white border border-[#2E3E58] shadow';
+        } else {
+          tab.className = 'px-3 py-1 text-xs rounded-lg font-mono bg-transparent text-slate-400 hover:bg-[#141C28] border border-transparent';
+        }
+      }
+
+      const content = document.getElementById('tc-content');
+      const data = testCases[num];
+      if (content && data) {
+        content.innerHTML = `
+          <div class="text-slate-300"><span class="text-slate-500">nums =</span> ${data.nums}</div>
+          <div class="text-slate-300"><span class="text-slate-500">target =</span> ${data.target}</div>
+        `;
+      }
+    }
+
+    function runCode() {
+      const btn = document.getElementById('btn-run');
+      const statusText = document.getElementById('result-status-text');
+      const statusIcon = document.getElementById('result-status-icon');
+      const metrics = document.getElementById('result-metrics');
+
+      btn.classList.add('opacity-60');
+      statusText.textContent = 'Running example preview...';
+      statusText.className = 'font-bold text-amber-400 font-mono';
+      statusIcon.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
+
+      setTimeout(() => {
+        btn.classList.remove('opacity-60');
+        statusText.textContent = 'Preview: Passed (3/3 Tests)';
+        statusText.className = 'font-bold text-emerald-400 font-mono';
+        statusIcon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34D399]';
+        metrics.textContent = `Runtime: ${Math.floor(Math.random() * 6 + 14)}ms | Memory: 14.1 MB`;
+      }, 350);
+    }
+
+    function submitCode() {
+      const btn = document.getElementById('btn-submit');
+      const statusText = document.getElementById('result-status-text');
+      const statusIcon = document.getElementById('result-status-icon');
+      const metrics = document.getElementById('result-metrics');
+
+      btn.innerHTML = `<span>Validating...</span>`;
+      statusText.textContent = 'Playing submission preview...';
+      statusText.className = 'font-bold text-[#FDDF49] font-mono';
+      statusIcon.className = 'w-2.5 h-2.5 rounded-full bg-[#FDDF49] animate-pulse';
+
+      setTimeout(() => {
+        btn.innerHTML = `<svg class="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg><span>Submit Solution</span>`;
+        statusText.textContent = 'Example accepted - preview only';
+        statusText.className = 'font-bold text-emerald-400 font-mono';
+        statusIcon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34D399]';
+        metrics.textContent = 'Demo results; edited code is not executed';
+      }, 550);
+    }
+
+    // Keyboard shortcut (Ctrl+Enter to run)
+    if (editor) {
+      editor.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          runCode();
+        }
+      });
+    }
+
+    // Countdown timer tick
+    let timeSeconds = 8 * 60 + 17;
+    setInterval(() => {
+      if (timeSeconds > 0) {
+        timeSeconds--;
+        const mins = Math.floor(timeSeconds / 60).toString().padStart(2, '0');
+        const secs = (timeSeconds % 60).toString().padStart(2, '0');
+        const timerEl = document.getElementById('duel-timer');
+        if (timerEl) {
+          timerEl.textContent = `${mins}:${secs}`;
+        }
+      }
+    }, 1000);
+
+    // ==========================================
+    // Slide-over Chat Drawer Functionality
+    // ==========================================
+    let isChatOpen = false;
+
+    function toggleChatDrawer(forceState) {
+      const chatTab = document.getElementById('editor-tab-chat');
+      const codeTab = document.getElementById('editor-tab-code');
+      const chatView = document.getElementById('editor-view-chat');
+      if (!document.getElementById('chat-drawer')) {
+        if (chatView.classList.contains('hidden')) chatTab.click();
+        else codeTab.click();
+        return;
+      }
+      const drawer = document.getElementById('chat-drawer');
+      const backdrop = document.getElementById('chat-backdrop');
+      const input = document.getElementById('duel-chat-input');
+
+      if (typeof forceState === 'boolean') {
+        isChatOpen = forceState;
+      } else {
+        isChatOpen = !isChatOpen;
+      }
+
+      if (isChatOpen) {
+        drawer.classList.remove('translate-x-full');
+        backdrop.classList.remove('opacity-0', 'pointer-events-none');
+        backdrop.classList.add('opacity-100', 'pointer-events-auto');
+        setTimeout(() => {
+          if (input) input.focus();
+        }, 200);
+      } else {
+        drawer.classList.add('translate-x-full');
+        backdrop.classList.remove('opacity-100', 'pointer-events-auto');
+        backdrop.classList.add('opacity-0', 'pointer-events-none');
+      }
+    }
+
+    function sendQuickChat(text) {
+      postUserMessage(text);
+    }
+
+    function submitChatMessage(event) {
+      event.preventDefault();
+      const input = document.getElementById('duel-chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      postUserMessage(text);
+      input.value = '';
+    }
+
+    function postUserMessage(text) {
+      const container = document.getElementById('chat-messages-container');
+      const now = new Date();
+      const timeStr = `${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+      const msgHtml = `
+        <div class="flex items-start gap-2.5 justify-end">
+          <div class="flex-1 flex flex-col items-end">
+            <div class="flex items-baseline gap-1.5 mb-1">
+              <span class="text-[9px] text-slate-500 font-mono">${timeStr}</span>
+              <span class="text-xs font-semibold text-[#FDDF49] font-mono">v0id_runner (You)</span>
+            </div>
+            <div class="inline-block bg-[#1A2435] border border-[#2B3B54] text-white text-xs px-3 py-2 rounded-xl rounded-tr-none font-sans leading-relaxed text-right shadow-sm">
+              ${escapeHtml(text)}
+            </div>
+          </div>
+          <div class="w-6 h-6 rounded bg-[#FDDF49]/15 border border-[#FDDF49]/40 text-[#FDDF49] text-[10px] font-bold font-mono flex items-center justify-center shrink-0 mt-0.5">VR</div>
+        </div>
+      `;
+
+      container.insertAdjacentHTML('beforeend', msgHtml);
+      container.scrollTop = container.scrollHeight;
+
+      // Simulated opponent reaction
+      if (text.toLowerCase().includes('rematch') || text.toLowerCase().includes('gl')) {
+        setTimeout(() => {
+          const reply = text.toLowerCase().includes('rematch') ? "100%, queueing after this!" : "lock in! let's do this";
+          const opHtml = `
+            <div class="flex items-start gap-2.5">
+              <div class="w-6 h-6 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold font-mono flex items-center justify-center shrink-0 mt-0.5">KN</div>
+              <div class="flex-1">
+                <div class="flex items-baseline gap-1.5 mb-1">
+                  <span class="text-xs font-semibold text-cyan-400 font-mono">KageNinja_99</span>
+                  <span class="text-[9px] text-slate-500 font-mono">now</span>
+                </div>
+                <div class="inline-block bg-[#121824] border border-[#1F293A] text-slate-200 text-xs px-3 py-2 rounded-xl rounded-tl-none font-sans leading-relaxed shadow-sm">
+                  ${reply}
+                </div>
+              </div>
+            </div>
+          `;
+          container.insertAdjacentHTML('beforeend', opHtml);
+          container.scrollTop = container.scrollHeight;
+        }, 1100);
+      }
+    }
+
+    function escapeHtml(string) {
+      const entityMap = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      };
+      return String(string).replace(/[&<>"']/g, s => entityMap[s]);
+    }
+
+    // Global Key shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isChatOpen) {
+        toggleChatDrawer(false);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        toggleChatDrawer();
+      }
+    });
+  </script>
+<!-- END: InteractivePlaygroundLogic -->
+
+
+<script>
+(() => {
+  const editor = document.getElementById('code-editor');
+  const gutter = document.querySelector('#editor-view-code > div:first-child');
+  if (!editor || !gutter) return;
+  function updateLines() {
+    const count = Math.max(16, editor.value.split('\n').length);
+    gutter.replaceChildren(...Array.from({ length: count }, (_, index) => {
+      const line = document.createElement('span');
+      line.textContent = String(index + 1);
+      return line;
+    }));
+    gutter.scrollTop = editor.scrollTop;
+  }
+  editor.addEventListener('input', updateLines);
+  editor.addEventListener('scroll', () => { gutter.scrollTop = editor.scrollTop; });
+  editor.addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab') return;
+    event.preventDefault();
+    editor.setRangeText('    ', editor.selectionStart, editor.selectionEnd, 'end');
+    updateLines();
+  });
+  document.getElementById('lang-selector')?.addEventListener('change', updateLines);
+  document.querySelector('[title="Reset to template"]')?.addEventListener('click', updateLines);
+  updateLines();
+})();
+</script>
+</body></html>
