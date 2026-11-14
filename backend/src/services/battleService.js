@@ -24,9 +24,21 @@ const battleTimers = {};
 const acceptTimers = {};
 const disconnectTimers = {};
 
+const getBattleDurationSeconds = () => parseInt(process.env.BATTLE_DURATION_SECONDS, 10) || 900;
+const getReconnectGraceSeconds = () => parseInt(process.env.RECONNECT_GRACE_SECONDS, 10) || 30;
+const getAcceptWindowSeconds = () => parseInt(process.env.ACCEPT_WINDOW_SECONDS, 10) || 30;
+
 const getUserId = (u) => (u && u._id ? String(u._id) : String(u));
 
+const toTimeMs = (val) => {
+  if (!val) return null;
+  if (typeof val === 'number') return val;
+  const t = new Date(val).getTime();
+  return isNaN(t) ? null : t;
+};
+
 const cleanProblem = (problem) => {
+  if (!problem) return null;
   const p = problem.toObject ? problem.toObject() : { ...problem };
   delete p.hiddenTestCases;
   return p;
@@ -34,6 +46,115 @@ const cleanProblem = (problem) => {
 
 const setIO = (io) => {
   ioInstance = io;
+};
+
+const formatBattleState = async (battle, userId) => {
+  const me = battle.players.find((p) => getUserId(p.user) === String(userId));
+  const opp = battle.players.find((p) => getUserId(p.user) !== String(userId));
+  const oppUser = opp && opp.user ? opp.user : null;
+  const oppRating = oppUser ? (oppUser.rating || opp.ratingBefore || 1200) : (opp ? opp.ratingBefore : 1200);
+
+  const opponent = oppUser ? {
+    _id: oppUser._id,
+    username: oppUser.username,
+    avatar: oppUser.avatar || '',
+    rating: oppRating,
+    tier: getTier(oppRating),
+  } : null;
+
+  if (battle.status === 'pending') {
+    const myRating = me && me.user ? (me.user.rating || me.ratingBefore || 1200) : 1200;
+    const expMe = 1 / (1 + Math.pow(10, (oppRating - myRating) / 400));
+    const win = Math.round(32 * (1 - expMe));
+    const loss = Math.round(32 * (0 - expMe));
+
+    return {
+      battleId: String(battle._id),
+      status: battle.status,
+      serverNow: Date.now(),
+      acceptDeadline: toTimeMs(battle.acceptDeadline),
+      opponent,
+      problem: battle.problem ? {
+        title: battle.problem.title,
+        difficulty: battle.problem.difficulty,
+        category: battle.problem.category,
+      } : null,
+      ratingPreview: { win, loss },
+    };
+  }
+
+  const chatKey = `battle:chat:${battle._id}`;
+  const rawMsgs = await redis.lrange(chatKey, 0, -1);
+  const lastChatMessages = rawMsgs
+    .map((m) => {
+      try {
+        return JSON.parse(m);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  const base = {
+    battleId: String(battle._id),
+    status: battle.status,
+    serverNow: Date.now(),
+    startedAt: toTimeMs(battle.startedAt),
+    endsAt: toTimeMs(battle.endsAt),
+    opponent,
+    problem: cleanProblem(battle.problem),
+    ownProgress: {
+      bestPassed: me ? me.bestPassed : 0,
+      totalTests: me ? me.totalTests : 0,
+    },
+    opponentProgress: {
+      bestPassed: opp ? opp.bestPassed : 0,
+      totalTests: opp ? opp.totalTests : 0,
+    },
+    lastChatMessages,
+  };
+
+  if (battle.status === 'finished') {
+    base.winner = battle.winner ? String(battle.winner) : null;
+    base.reason = battle.reason || null;
+  }
+
+  return base;
+};
+
+const formatBattleEndShape = (battle) => {
+  const startedTime = battle.startedAt ? toTimeMs(battle.startedAt) : null;
+  const p0 = battle.players[0];
+  const p1 = battle.players[1];
+  const u0 = p0 && p0.user;
+  const u1 = p1 && p1.user;
+
+  const formatPlayer = (player, userDoc) => ({
+    username: userDoc ? userDoc.username : '',
+    avatar: userDoc ? userDoc.avatar : '',
+    passedCount: player ? player.bestPassed : 0,
+    totalTests: player ? player.totalTests : 0,
+    solveTimeMs: player && player.solvedAt && startedTime ? Math.max(0, toTimeMs(player.solvedAt) - startedTime) : null,
+    runtimeMs: null,
+    ratingBefore: player ? player.ratingBefore : 1200,
+    ratingAfter: player ? player.ratingAfter : null,
+    ratingDelta: player ? player.ratingDelta : null,
+    xpGained: player ? player.xpGained : 0,
+  });
+
+  return {
+    battleId: String(battle._id),
+    status: battle.status,
+    winner: battle.winner ? String(battle.winner) : null,
+    reason: battle.reason || null,
+    players: [formatPlayer(p0, u0), formatPlayer(p1, u1)],
+    timeline: (battle.timeline || []).map((t) => ({
+      user: String(t.user),
+      passedCount: t.passedCount,
+      totalCount: t.totalCount,
+      at: toTimeMs(t.at),
+    })),
+  };
 };
 
 const enqueuePlayer = async (userId, mode = 'ranked_1v1') => {
@@ -99,7 +220,8 @@ const createMatchedBattle = async (userIdA, userIdB) => {
   }
   if (!problem) return;
 
-  const acceptDeadline = new Date(Date.now() + 30000);
+  const acceptWindow = getAcceptWindowSeconds();
+  const acceptDeadline = new Date(Date.now() + acceptWindow * 1000);
   const battle = await Battle.create({
     players: [
       { user: userA._id, ratingBefore: userA.rating, response: 'pending' },
@@ -113,7 +235,7 @@ const createMatchedBattle = async (userIdA, userIdB) => {
 
   acceptTimers[battle._id] = setTimeout(() => {
     onAcceptTimeout(battle._id);
-  }, 30000);
+  }, acceptWindow * 1000);
 
   const rA = userA.rating;
   const rB = userB.rating;
@@ -198,38 +320,67 @@ const onAcceptTimeout = async (battleId) => {
 };
 
 const acceptMatch = async (battleId, userId) => {
-  const battle = await Battle.findOneAndUpdate(
+  const battle = await Battle.findById(battleId);
+  if (!battle) {
+    return { success: false, message: 'Battle not found' };
+  }
+  const isPart = battle.players.some((p) => getUserId(p.user) === String(userId));
+  if (!isPart) {
+    return { success: false, message: 'Not a participant in this battle' };
+  }
+  if (battle.status !== 'pending') {
+    return { success: false, message: 'Battle is not in pending state' };
+  }
+
+  const updated = await Battle.findOneAndUpdate(
     { _id: battleId, status: 'pending', 'players.user': userId },
     { $set: { 'players.$.response': 'accepted' } },
     { new: true }
   );
-  if (!battle) return;
+  if (!updated) {
+    return { success: false, message: 'Could not accept match' };
+  }
 
-  const allAccepted = battle.players.every((p) => p.response === 'accepted');
+  const allAccepted = updated.players.every((p) => p.response === 'accepted');
   if (allAccepted) {
     if (acceptTimers[battleId]) {
       clearTimeout(acceptTimers[battleId]);
       delete acceptTimers[battleId];
     }
-    await startBattle(battle._id);
+    await startBattle(battleId);
   }
+  return { success: true, message: 'Match accepted' };
 };
 
 const declineMatch = async (battleId, userId) => {
+  const battle = await Battle.findById(battleId);
+  if (!battle) {
+    return { success: false, message: 'Battle not found' };
+  }
+  const isPart = battle.players.some((p) => getUserId(p.user) === String(userId));
+  if (!isPart) {
+    return { success: false, message: 'Not a participant in this battle' };
+  }
+  if (battle.status !== 'pending') {
+    return { success: false, message: 'Battle is not in pending state' };
+  }
+
   if (acceptTimers[battleId]) {
     clearTimeout(acceptTimers[battleId]);
     delete acceptTimers[battleId];
   }
 
-  const battle = await Battle.findOneAndUpdate(
+  const updated = await Battle.findOneAndUpdate(
     { _id: battleId, status: 'pending' },
     { status: 'cancelled' },
     { new: true }
   ).populate('players.user');
-  if (!battle) return;
+  if (!updated) {
+    return { success: false, message: 'Battle already concluded' };
+  }
 
-  const decliner = battle.players.find((p) => getUserId(p.user) === String(userId));
-  const accepter = battle.players.find((p) => getUserId(p.user) !== String(userId));
+  const decliner = updated.players.find((p) => getUserId(p.user) === String(userId));
+  const accepter = updated.players.find((p) => getUserId(p.user) !== String(userId));
 
   if (decliner) {
     const declinerId = getUserId(decliner.user);
@@ -242,11 +393,14 @@ const declineMatch = async (battleId, userId) => {
     await redis.zadd(QUEUE_KEY, accepter.user?.rating || 1200, accepterId);
     await redis.hset('matchmaking:times', accepterId, Date.now());
   }
+
+  return { success: true, message: 'Match declined' };
 };
 
 const startBattle = async (battleId) => {
   const startedAt = new Date();
-  const endsAt = new Date(Date.now() + 15 * 60 * 1000);
+  const duration = getBattleDurationSeconds();
+  const endsAt = new Date(Date.now() + duration * 1000);
   const battle = await Battle.findOneAndUpdate(
     { _id: battleId, status: 'pending' },
     { status: 'active', startedAt, endsAt },
@@ -256,7 +410,7 @@ const startBattle = async (battleId) => {
 
   battleTimers[battle._id] = setTimeout(() => {
     onBattleTimeUp(battle._id);
-  }, 15 * 60 * 1000);
+  }, duration * 1000);
 
   const cleanProb = cleanProblem(battle.problem);
   const p0 = battle.players[0].user;
@@ -400,27 +554,7 @@ const finishBattle = async (battleId, winnerId, reason) => {
 
   await battle.save();
 
-  const startedTime = new Date(battle.startedAt).getTime();
-  const formatPlayerPayload = (player, userDoc) => ({
-    username: userDoc ? userDoc.username : '',
-    avatar: userDoc ? userDoc.avatar : '',
-    passedCount: player.bestPassed,
-    totalTests: player.totalTests,
-    solveTimeMs: player.solvedAt ? Math.max(0, new Date(player.solvedAt).getTime() - startedTime) : null,
-    runtimeMs: null,
-    ratingBefore: player.ratingBefore,
-    ratingAfter: player.ratingAfter,
-    ratingDelta: player.ratingDelta,
-    xpGained: player.xpGained,
-  });
-
-  const payload = {
-    battleId: battle._id,
-    winner: winnerId ? String(winnerId) : null,
-    reason,
-    players: [formatPlayerPayload(p0, u0), formatPlayerPayload(p1, u1)],
-    timeline: battle.timeline,
-  };
+  const payload = formatBattleEndShape(battle);
 
   ioInstance?.to(`user:${p0Id}`).emit('battle_end', payload);
   ioInstance?.to(`user:${p1Id}`).emit('battle_end', payload);
@@ -428,12 +562,24 @@ const finishBattle = async (battleId, winnerId, reason) => {
 
 const forfeitBattle = async (battleId, userId) => {
   const battle = await Battle.findById(battleId);
-  if (!battle || battle.status !== 'active') return;
+  if (!battle) {
+    return { success: false, message: 'Battle not found' };
+  }
+  const isPart = battle.players.some((p) => getUserId(p.user) === String(userId));
+  if (!isPart) {
+    return { success: false, message: 'Not a participant in this battle' };
+  }
+  if (battle.status !== 'active') {
+    return { success: false, message: 'Battle is not active' };
+  }
 
   const opponent = battle.players.find((p) => getUserId(p.user) !== String(userId));
-  if (!opponent) return;
+  if (!opponent) {
+    return { success: false, message: 'Opponent not found' };
+  }
 
   await finishBattle(battleId, getUserId(opponent.user), 'forfeit');
+  return { success: true, message: 'Battle forfeited' };
 };
 
 const handleDisconnect = async (userId) => {
@@ -444,7 +590,8 @@ const handleDisconnect = async (userId) => {
   if (!opponent) return;
 
   const opponentId = getUserId(opponent.user);
-  ioInstance?.to(`user:${opponentId}`).emit('opponent_disconnected', { graceSeconds: 30 });
+  const grace = getReconnectGraceSeconds();
+  ioInstance?.to(`user:${opponentId}`).emit('opponent_disconnected', { graceSeconds: grace });
 
   const timerKey = `${battle._id}:${userId}`;
   if (disconnectTimers[timerKey]) clearTimeout(disconnectTimers[timerKey]);
@@ -464,6 +611,7 @@ const handleDisconnect = async (userId) => {
       if (updated) {
         ioInstance?.to(`user:${opponentId}`).emit('battle_end', {
           battleId: battle._id,
+          status: 'abandoned',
           winner: null,
           reason: 'abandoned',
           players: [],
@@ -474,7 +622,7 @@ const handleDisconnect = async (userId) => {
     }
 
     await finishBattle(battle._id, opponentId, 'disconnect');
-  }, 30000);
+  }, grace * 1000);
 };
 
 const handleReconnect = async (userId) => {
@@ -494,66 +642,52 @@ const handleReconnect = async (userId) => {
 
 const getBattleState = async (battleId, userId) => {
   const battle = await Battle.findById(battleId).populate('problem players.user');
-  if (!battle) return null;
-
+  if (!battle) {
+    return { success: false, message: 'Battle not found' };
+  }
   const isPart = battle.players.some((p) => getUserId(p.user) === String(userId));
-  if (!isPart) return null;
+  if (!isPart) {
+    return { success: false, message: 'Not a participant in this battle' };
+  }
 
-  const me = battle.players.find((p) => getUserId(p.user) === String(userId));
-  const opp = battle.players.find((p) => getUserId(p.user) !== String(userId));
-
-  const chatKey = `battle:chat:${battleId}`;
-  const rawMsgs = await redis.lrange(chatKey, 0, -1);
-  const lastChatMessages = rawMsgs
-    .map((m) => {
-      try {
-        return JSON.parse(m);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
-
-  return {
-    problem: cleanProblem(battle.problem),
-    endsAt: battle.endsAt,
-    startedAt: battle.startedAt,
-    serverNow: Date.now(),
-    ownProgress: {
-      bestPassed: me ? me.bestPassed : 0,
-      totalTests: me ? me.totalTests : 0,
-    },
-    opponentProgress: {
-      bestPassed: opp ? opp.bestPassed : 0,
-      totalTests: opp ? opp.totalTests : 0,
-    },
-    lastChatMessages,
-    status: battle.status,
-  };
+  const state = await formatBattleState(battle, userId);
+  return { success: true, data: state };
 };
 
 const handleChatMessage = async (battleId, userId, text) => {
   const battle = await Battle.findById(battleId);
-  if (!battle || (battle.status !== 'active' && battle.status !== 'pending')) return;
-
+  if (!battle) {
+    return { success: false, message: 'Battle not found' };
+  }
   const isPart = battle.players.some((p) => getUserId(p.user) === String(userId));
-  if (!isPart) return;
+  if (!isPart) {
+    return { success: false, message: 'Not a participant in this battle' };
+  }
+  if (battle.status !== 'active' && battle.status !== 'pending') {
+    return { success: false, message: 'Battle is not in progress' };
+  }
 
   const rateKey = `ratelimit:chat:${userId}:${battleId}`;
   const count = await redis.incr(rateKey);
   if (count === 1) {
     await redis.expire(rateKey, 5);
   }
-  if (count > 5) return;
+  if (count > 5) {
+    return { success: false, message: 'Rate limit exceeded: maximum 5 messages per 5s' };
+  }
 
   const cleanText = String(text || '')
     .replace(/<[^>]*>?/gm, '')
     .trim()
     .slice(0, 200);
-  if (!cleanText) return;
+  if (!cleanText) {
+    return { success: false, message: 'Message text cannot be empty' };
+  }
 
   const user = await User.findById(userId);
-  if (!user) return;
+  if (!user) {
+    return { success: false, message: 'User not found' };
+  }
 
   const msg = {
     from: user.username,
@@ -570,6 +704,8 @@ const handleChatMessage = async (battleId, userId, text) => {
   const p1 = getUserId(battle.players[1].user);
   ioInstance?.to(`user:${p0}`).emit('battle_chat_message', msg);
   ioInstance?.to(`user:${p1}`).emit('battle_chat_message', msg);
+
+  return { success: true, message: 'Message sent' };
 };
 
 const runMatcherTick = async () => {
@@ -703,4 +839,8 @@ module.exports = {
   handleChatMessage,
   finishBattle,
   getArenaStats,
+  formatBattleState,
+  formatBattleEndShape,
+  getUserId,
+  toTimeMs,
 };
