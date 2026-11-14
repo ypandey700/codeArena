@@ -1,8 +1,11 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
+const passport = require('../config/passport');
 const User = require('../models/User');
 const redis = require('../config/redis');
+const { getTier } = require('../utils/tier');
 
 const registerSchema = z.object({
   username: z.string().trim().min(3, 'Username must be at least 3 characters').max(20, 'Username must be at most 20 characters'),
@@ -54,6 +57,7 @@ const register = async (req, res) => {
       username: lowerUsername,
       email: lowerEmail,
       passwordHash,
+      authProviders: ['local'],
     });
 
     const { accessToken, refreshToken } = generateTokens(user._id);
@@ -90,6 +94,14 @@ const login = async (req, res) => {
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    if (!user.passwordHash) {
+      const providers = [];
+      if (user.authProviders?.includes('google') || user.googleId) providers.push('Google');
+      if (user.authProviders?.includes('github') || user.githubId) providers.push('GitHub');
+      const providerText = providers.length > 0 ? providers.join('/') : 'Google/GitHub';
+      return res.status(400).json({ message: `This account uses ${providerText} login` });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
@@ -180,15 +192,119 @@ const logout = async (req, res) => {
 
 const getMe = async (req, res) => {
   try {
+    const userObj = req.user.toObject();
+    const rank = (await User.countDocuments({ rating: { $gt: req.user.rating } })) + 1;
+    userObj.rank = rank;
+    userObj.tier = getTier(req.user.rating);
     return res.json({
       success: true,
       data: {
-        user: req.user,
+        user: userObj,
       },
     });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
+};
+
+const googleAuth = (req, res, next) => {
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.redirect(`${clientUrl}/auth/callback?error=google_not_configured`);
+  }
+  const state = crypto.randomBytes(32).toString('hex');
+  res.cookie('oauth_state', state, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 10 * 60 * 1000,
+  });
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state,
+    session: false,
+  })(req, res, next);
+};
+
+const googleCallback = (req, res, next) => {
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  if (req.query.error) {
+    return res.redirect(`${clientUrl}/auth/callback?error=${encodeURIComponent(req.query.error)}`);
+  }
+  const state = req.query.state;
+  const savedState = req.cookies?.oauth_state;
+  res.clearCookie('oauth_state', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
+  if (!state || !savedState || state !== savedState) {
+    return res.redirect(`${clientUrl}/auth/callback?error=invalid_state`);
+  }
+  passport.authenticate('google', { session: false }, async (err, user) => {
+    if (err || !user) {
+      const code = err?.message || 'auth_failed';
+      return res.redirect(`${clientUrl}/auth/callback?error=${encodeURIComponent(code)}`);
+    }
+    try {
+      const { accessToken, refreshToken } = generateTokens(user._id);
+      await redis.set(`refresh:${user._id}`, refreshToken, 'EX', 7 * 24 * 60 * 60);
+      setRefreshCookie(res, refreshToken);
+      return res.redirect(`${clientUrl}/auth/callback`);
+    } catch {
+      return res.redirect(`${clientUrl}/auth/callback?error=server_error`);
+    }
+  })(req, res, next);
+};
+
+const githubAuth = (req, res, next) => {
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.redirect(`${clientUrl}/auth/callback?error=github_not_configured`);
+  }
+  const state = crypto.randomBytes(32).toString('hex');
+  res.cookie('oauth_state', state, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 10 * 60 * 1000,
+  });
+  passport.authenticate('github', {
+    scope: ['user:email'],
+    state,
+    session: false,
+  })(req, res, next);
+};
+
+const githubCallback = (req, res, next) => {
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  if (req.query.error) {
+    return res.redirect(`${clientUrl}/auth/callback?error=${encodeURIComponent(req.query.error)}`);
+  }
+  const state = req.query.state;
+  const savedState = req.cookies?.oauth_state;
+  res.clearCookie('oauth_state', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
+  if (!state || !savedState || state !== savedState) {
+    return res.redirect(`${clientUrl}/auth/callback?error=invalid_state`);
+  }
+  passport.authenticate('github', { session: false }, async (err, user) => {
+    if (err || !user) {
+      const code = err?.message || 'auth_failed';
+      return res.redirect(`${clientUrl}/auth/callback?error=${encodeURIComponent(code)}`);
+    }
+    try {
+      const { accessToken, refreshToken } = generateTokens(user._id);
+      await redis.set(`refresh:${user._id}`, refreshToken, 'EX', 7 * 24 * 60 * 60);
+      setRefreshCookie(res, refreshToken);
+      return res.redirect(`${clientUrl}/auth/callback`);
+    } catch {
+      return res.redirect(`${clientUrl}/auth/callback?error=server_error`);
+    }
+  })(req, res, next);
 };
 
 module.exports = {
@@ -197,4 +313,8 @@ module.exports = {
   refresh,
   logout,
   getMe,
+  googleAuth,
+  googleCallback,
+  githubAuth,
+  githubCallback,
 };

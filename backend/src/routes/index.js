@@ -4,6 +4,8 @@ const authRoutes = require('./authRoutes');
 const userRoutes = require('./userRoutes');
 const problemRoutes = require('./problemRoutes');
 const submissionRoutes = require('./submissionRoutes');
+const battleRoutes = require('./battleRoutes');
+const arenaRoutes = require('./arenaRoutes');
 
 router.get('/', (req, res) => {
   res.json({
@@ -16,5 +18,7 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/problems', problemRoutes);
 router.use('/submissions', submissionRoutes);
+router.use('/battles', battleRoutes);
+router.use('/arena', arenaRoutes);
 
 module.exports = router;

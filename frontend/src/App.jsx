@@ -9,6 +9,7 @@ import Landing from "./pages/Landing";
 import AIInterview from "./pages/AIInterview";
 import CommandDeck from "./pages/CommandDeck";
 import Profile from "./pages/Profile";
+import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 import { useAuth } from "./context/AuthContext";
 import { MatchFound, QueueOverlay } from "./components/Matchmaking";
@@ -69,6 +70,7 @@ export default function App() {
               }
             />
             <Route path="/u/:username" element={<Profile />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         )}

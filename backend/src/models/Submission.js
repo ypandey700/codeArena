@@ -34,6 +34,11 @@ const submissionSchema = new mongoose.Schema(
       ref: 'Problem',
       required: true,
     },
+    battle: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Battle',
+      required: false,
+    },
     language: {
       type: String,
       required: true,

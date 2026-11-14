@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { getTier } = require('../utils/tier');
 
 const searchUsers = async (req, res) => {
   try {
@@ -24,10 +25,16 @@ const searchUsers = async (req, res) => {
       User.countDocuments(filter),
     ]);
 
+    const formattedUsers = users.map((u) => {
+      const obj = u.toObject();
+      obj.tier = getTier(u.rating);
+      return obj;
+    });
+
     return res.json({
       success: true,
       data: {
-        users,
+        users: formattedUsers,
         total,
         page,
         limit,
@@ -50,10 +57,15 @@ const getUserProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    const rank = (await User.countDocuments({ rating: { $gt: user.rating } })) + 1;
+    const userObj = user.toObject();
+    userObj.rank = rank;
+    userObj.tier = getTier(user.rating);
+
     return res.json({
       success: true,
       data: {
-        user,
+        user: userObj,
       },
     });
   } catch (err) {

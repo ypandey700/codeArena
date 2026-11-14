@@ -12,20 +12,23 @@ export function AuthProvider({ children }) {
   const openSignup = () => setAuthModal("signup");
   const closeAuthModal = () => setAuthModal(null);
 
+  const refreshAuth = async () => {
+    const refreshRes = await api.post("/auth/refresh");
+    const token = refreshRes.data?.data?.accessToken;
+    if (!token) throw new Error("No token returned");
+    setAccessToken(token);
+    const meRes = await api.get("/auth/me");
+    const currentUser = meRes.data?.data?.user;
+    setUser(currentUser);
+    return currentUser;
+  };
+
   useEffect(() => {
     let mounted = true;
 
     const initAuth = async () => {
       try {
-        const refreshRes = await api.post("/auth/refresh");
-        const token = refreshRes.data?.data?.accessToken;
-        if (token) {
-          setAccessToken(token);
-          const meRes = await api.get("/auth/me");
-          if (mounted) {
-            setUser(meRes.data?.data?.user || null);
-          }
-        }
+        await refreshAuth();
       } catch {
         if (mounted) {
           setAccessToken(null);
@@ -100,6 +103,7 @@ export function AuthProvider({ children }) {
         register,
         logout,
         refreshUser,
+        refreshAuth,
       }}
     >
       {loading ? (

@@ -20,8 +20,22 @@ const userSchema = new mongoose.Schema(
     },
     passwordHash: {
       type: String,
-      required: true,
+      required: false,
       select: false,
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    githubId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    authProviders: {
+      type: [String],
+      default: [],
     },
     avatar: {
       type: String,
@@ -52,6 +66,9 @@ const userSchema = new mongoose.Schema(
       submissions: { type: Number, default: 0 },
       wins: { type: Number, default: 0 },
       losses: { type: Number, default: 0 },
+      draws: { type: Number, default: 0 },
+      streak: { type: Number, default: 0 },
+      peakRating: { type: Number, default: 1200 },
     },
     friends: [
       {
