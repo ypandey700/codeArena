@@ -1,4 +1,5 @@
 import axios from "axios";
+import { updateSocketToken, disconnectSocket } from "./socket";
 
 let accessToken = null;
 let authFailureHandler = null;
@@ -11,6 +12,11 @@ const api = axios.create({
 
 export const setAccessToken = (token) => {
   accessToken = token;
+  if (token) {
+    updateSocketToken(token);
+  } else {
+    disconnectSocket();
+  }
 };
 
 export const getAccessToken = () => accessToken;
