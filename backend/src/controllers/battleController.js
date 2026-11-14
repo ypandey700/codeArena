@@ -1,12 +1,23 @@
 const Battle = require('../models/Battle');
 const Problem = require('../models/Problem');
 const Submission = require('../models/Submission');
+const redis = require('../config/redis');
 const { runSubmission } = require('../services/codeRunnerService');
-const { finishBattle } = require('../services/battleService');
+const { finishBattle, formatBattleState, formatBattleEndShape } = require('../services/battleService');
 const { getIO } = require('../sockets');
 
 const submitBattleCode = async (req, res) => {
   try {
+    const userId = String(req.user._id);
+    const rateKey = `ratelimit:submission:${userId}`;
+    const count = await redis.incr(rateKey);
+    if (count === 1) {
+      await redis.expire(rateKey, 60);
+    }
+    if (count > 10) {
+      return res.status(429).json({ message: 'Rate limit exceeded: maximum 10 submissions per minute' });
+    }
+
     const { id } = req.params;
     const { language, code } = req.body;
 
@@ -73,26 +84,36 @@ const submitBattleCode = async (req, res) => {
       executionTimeMs: result.executionTimeMs,
     });
 
-    const player = battle.players.find((p) => String(p.user) === String(req.user._id));
-    const opponent = battle.players.find((p) => String(p.user) !== String(req.user._id));
-
-    player.lastSubmissionAt = new Date();
-    player.totalTests = result.totalCount;
-    if (result.passedCount > player.bestPassed) {
-      player.bestPassed = result.passedCount;
-    }
-    if (result.passedCount === result.totalCount && result.status === 'accepted' && !player.solvedAt) {
-      player.solvedAt = new Date();
+    const freshBattle = await Battle.findById(battle._id);
+    if (!freshBattle) {
+      return res.status(404).json({ message: 'Battle not found' });
     }
 
-    battle.timeline.push({
+    const player = freshBattle.players.find((p) => String(p.user) === String(req.user._id));
+    const opponent = freshBattle.players.find((p) => String(p.user) !== String(req.user._id));
+
+    if (player) {
+      player.lastSubmissionAt = new Date();
+      player.totalTests = result.totalCount;
+      if (result.passedCount > player.bestPassed) {
+        player.bestPassed = result.passedCount;
+        player.set('runtimeMs', result.executionTimeMs, { strict: false });
+      } else if (result.passedCount === player.bestPassed && (player.get('runtimeMs') == null || (result.status === 'accepted' && result.executionTimeMs < player.get('runtimeMs')))) {
+        player.set('runtimeMs', result.executionTimeMs, { strict: false });
+      }
+      if (result.passedCount === result.totalCount && result.status === 'accepted' && !player.solvedAt) {
+        player.solvedAt = new Date();
+      }
+    }
+
+    freshBattle.timeline.push({
       user: req.user._id,
       passedCount: result.passedCount,
       totalCount: result.totalCount,
       at: new Date(),
     });
 
-    await battle.save();
+    await freshBattle.save();
 
     const io = getIO();
     io?.to(`user:${req.user._id}`).emit('submission_result', {
@@ -110,8 +131,8 @@ const submitBattleCode = async (req, res) => {
       });
     }
 
-    if (result.status === 'accepted' && result.passedCount === result.totalCount) {
-      await finishBattle(battle._id, req.user._id, 'solved');
+    if (freshBattle.status === 'active' && result.status === 'accepted' && result.passedCount === result.totalCount) {
+      await finishBattle(freshBattle._id, req.user._id, 'solved');
     }
 
     return res.json({
@@ -133,21 +154,19 @@ const getActiveBattle = async (req, res) => {
     const battle = await Battle.findOne({
       'players.user': req.user._id,
       status: { $in: ['pending', 'active'] },
-    }).populate('problem players.user', '-hiddenTestCases');
+    }).populate('problem players.user');
 
     if (!battle) {
       return res.json({ success: true, data: { battle: null } });
     }
 
-    const bObj = battle.toObject();
-    if (bObj.problem) {
-      delete bObj.problem.hiddenTestCases;
-    }
+    const formatted = await formatBattleState(battle, req.user._id);
 
     return res.json({
       success: true,
       data: {
-        battle: bObj,
+        battle: formatted,
+        ...formatted,
       },
     });
   } catch (err) {
@@ -157,26 +176,21 @@ const getActiveBattle = async (req, res) => {
 
 const getBattleById = async (req, res) => {
   try {
-    const battle = await Battle.findById(req.params.id).populate('problem players.user', '-hiddenTestCases');
+    const battle = await Battle.findById(req.params.id).populate('problem players.user');
     if (!battle) {
       return res.status(404).json({ message: 'Battle not found' });
     }
 
-    const isParticipant = battle.players.some((p) => String(p.user._id) === String(req.user._id));
+    const isParticipant = battle.players.some((p) => String(p.user?._id || p.user) === String(req.user._id));
     if (!isParticipant) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const bObj = battle.toObject();
-    if (bObj.problem) {
-      delete bObj.problem.hiddenTestCases;
-    }
+    const formatted = formatBattleEndShape(battle);
 
     return res.json({
       success: true,
-      data: {
-        battle: bObj,
-      },
+      data: formatted,
     });
   } catch (err) {
     return res.status(500).json({ message: err.message });

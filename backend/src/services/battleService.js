@@ -51,19 +51,38 @@ const setIO = (io) => {
 const formatBattleState = async (battle, userId) => {
   const me = battle.players.find((p) => getUserId(p.user) === String(userId));
   const opp = battle.players.find((p) => getUserId(p.user) !== String(userId));
-  const oppUser = opp && opp.user ? opp.user : null;
+  const oppUser = opp && opp.user && typeof opp.user === 'object' && opp.user.username ? opp.user : null;
   const oppRating = oppUser ? (oppUser.rating || opp.ratingBefore || 1200) : (opp ? opp.ratingBefore : 1200);
 
-  const opponent = oppUser ? {
-    _id: oppUser._id,
-    username: oppUser.username,
-    avatar: oppUser.avatar || '',
+  const opponent = opp ? {
+    _id: oppUser ? String(oppUser._id) : getUserId(opp.user),
+    username: oppUser ? oppUser.username : '',
+    avatar: oppUser ? (oppUser.avatar || '') : '',
     rating: oppRating,
     tier: getTier(oppRating),
   } : null;
 
+  const formatStatePlayer = (p) => {
+    const u = p && p.user && typeof p.user === 'object' && p.user.username ? p.user : null;
+    return {
+      userId: getUserId(p?.user),
+      username: u ? u.username : '',
+      avatar: u ? (u.avatar || '') : '',
+      passedCount: p ? p.bestPassed : 0,
+      totalTests: p ? p.totalTests : 0,
+      runtimeMs: p ? (typeof p.get === 'function' ? p.get('runtimeMs') : p.runtimeMs) ?? null : null,
+      ratingBefore: p ? p.ratingBefore : 1200,
+      ratingAfter: p ? p.ratingAfter : null,
+      ratingDelta: p ? p.ratingDelta : null,
+      xpGained: p ? p.xpGained : 0,
+    };
+  };
+
+  const players = (battle.players || []).map(formatStatePlayer);
+
   if (battle.status === 'pending') {
-    const myRating = me && me.user ? (me.user.rating || me.ratingBefore || 1200) : 1200;
+    const myUser = me && me.user && typeof me.user === 'object' && me.user.username ? me.user : null;
+    const myRating = myUser ? (myUser.rating || me.ratingBefore || 1200) : (me ? me.ratingBefore : 1200);
     const expMe = 1 / (1 + Math.pow(10, (oppRating - myRating) / 400));
     const win = Math.round(32 * (1 - expMe));
     const loss = Math.round(32 * (0 - expMe));
@@ -74,6 +93,7 @@ const formatBattleState = async (battle, userId) => {
       serverNow: Date.now(),
       acceptDeadline: toTimeMs(battle.acceptDeadline),
       opponent,
+      players,
       problem: battle.problem ? {
         title: battle.problem.title,
         difficulty: battle.problem.difficulty,
@@ -102,14 +122,17 @@ const formatBattleState = async (battle, userId) => {
     startedAt: toTimeMs(battle.startedAt),
     endsAt: toTimeMs(battle.endsAt),
     opponent,
+    players,
     problem: cleanProblem(battle.problem),
     ownProgress: {
       bestPassed: me ? me.bestPassed : 0,
       totalTests: me ? me.totalTests : 0,
+      runtimeMs: me ? (typeof me.get === 'function' ? me.get('runtimeMs') : me.runtimeMs) ?? null : null,
     },
     opponentProgress: {
       bestPassed: opp ? opp.bestPassed : 0,
       totalTests: opp ? opp.totalTests : 0,
+      runtimeMs: opp ? (typeof opp.get === 'function' ? opp.get('runtimeMs') : opp.runtimeMs) ?? null : null,
     },
     lastChatMessages,
   };
@@ -130,12 +153,13 @@ const formatBattleEndShape = (battle) => {
   const u1 = p1 && p1.user;
 
   const formatPlayer = (player, userDoc) => ({
-    username: userDoc ? userDoc.username : '',
-    avatar: userDoc ? userDoc.avatar : '',
+    userId: getUserId(player?.user || userDoc),
+    username: userDoc && typeof userDoc === 'object' && userDoc.username ? userDoc.username : '',
+    avatar: userDoc && typeof userDoc === 'object' && userDoc.avatar ? userDoc.avatar : '',
     passedCount: player ? player.bestPassed : 0,
     totalTests: player ? player.totalTests : 0,
     solveTimeMs: player && player.solvedAt && startedTime ? Math.max(0, toTimeMs(player.solvedAt) - startedTime) : null,
-    runtimeMs: null,
+    runtimeMs: player ? (typeof player.get === 'function' ? player.get('runtimeMs') : player.runtimeMs) ?? null : null,
     ratingBefore: player ? player.ratingBefore : 1200,
     ratingAfter: player ? player.ratingAfter : null,
     ratingDelta: player ? player.ratingDelta : null,
@@ -220,12 +244,15 @@ const createMatchedBattle = async (userIdA, userIdB) => {
   }
   if (!problem) return;
 
+  const problemDoc = await Problem.findById(problem._id).select('+hiddenTestCases');
+  const totalTests = (problemDoc?.sampleTestCases?.length || 0) + (problemDoc?.hiddenTestCases?.length || 0);
+
   const acceptWindow = getAcceptWindowSeconds();
   const acceptDeadline = new Date(Date.now() + acceptWindow * 1000);
   const battle = await Battle.create({
     players: [
-      { user: userA._id, ratingBefore: userA.rating, response: 'pending' },
-      { user: userB._id, ratingBefore: userB.rating, response: 'pending' },
+      { user: userA._id, ratingBefore: userA.rating, response: 'pending', totalTests },
+      { user: userB._id, ratingBefore: userB.rating, response: 'pending', totalTests },
     ],
     problem: problem._id,
     mode: 'ranked_1v1',
@@ -314,7 +341,7 @@ const onAcceptTimeout = async (battleId) => {
       await redis.zadd(QUEUE_KEY, p.user?.rating || 1200, pid);
       await redis.hset('matchmaking:times', pid, Date.now());
     } else {
-      await redis.set(`cooldown:${pid}`, '1', 'EX', 30);
+      await redis.set(`cooldown:${pid}`, '1', 'EX', getAcceptWindowSeconds());
     }
   }
 };
@@ -327,6 +354,9 @@ const acceptMatch = async (battleId, userId) => {
   const isPart = battle.players.some((p) => getUserId(p.user) === String(userId));
   if (!isPart) {
     return { success: false, message: 'Not a participant in this battle' };
+  }
+  if (battle.status === 'finished' || battle.status === 'cancelled') {
+    return { success: false, message: 'Battle has already ended' };
   }
   if (battle.status !== 'pending') {
     return { success: false, message: 'Battle is not in pending state' };
@@ -361,6 +391,9 @@ const declineMatch = async (battleId, userId) => {
   if (!isPart) {
     return { success: false, message: 'Not a participant in this battle' };
   }
+  if (battle.status === 'finished' || battle.status === 'cancelled') {
+    return { success: false, message: 'Battle has already ended' };
+  }
   if (battle.status !== 'pending') {
     return { success: false, message: 'Battle is not in pending state' };
   }
@@ -385,7 +418,7 @@ const declineMatch = async (battleId, userId) => {
   if (decliner) {
     const declinerId = getUserId(decliner.user);
     ioInstance?.to(`user:${declinerId}`).emit('match_cancelled', { battleId, reason: 'declined' });
-    await redis.set(`cooldown:${declinerId}`, '1', 'EX', 30);
+    await redis.set(`cooldown:${declinerId}`, '1', 'EX', getAcceptWindowSeconds());
   }
   if (accepter) {
     const accepterId = getUserId(accepter.user);
@@ -407,6 +440,13 @@ const startBattle = async (battleId) => {
     { new: true }
   ).populate('problem players.user');
   if (!battle) return;
+
+  const problemDoc = await Problem.findById(battle.problem?._id || battle.problem).select('+hiddenTestCases');
+  const totalTests = (problemDoc?.sampleTestCases?.length || 0) + (problemDoc?.hiddenTestCases?.length || 0);
+  battle.players.forEach((p) => {
+    p.totalTests = totalTests;
+  });
+  await battle.save();
 
   battleTimers[battle._id] = setTimeout(() => {
     onBattleTimeUp(battle._id);
@@ -569,6 +609,9 @@ const forfeitBattle = async (battleId, userId) => {
   if (!isPart) {
     return { success: false, message: 'Not a participant in this battle' };
   }
+  if (battle.status === 'finished' || battle.status === 'cancelled') {
+    return { success: false, message: 'Battle has already ended' };
+  }
   if (battle.status !== 'active') {
     return { success: false, message: 'Battle is not active' };
   }
@@ -663,8 +706,11 @@ const handleChatMessage = async (battleId, userId, text) => {
   if (!isPart) {
     return { success: false, message: 'Not a participant in this battle' };
   }
+  if (battle.status === 'finished' || battle.status === 'cancelled') {
+    return { success: false, message: 'Battle has already ended' };
+  }
   if (battle.status !== 'active' && battle.status !== 'pending') {
-    return { success: false, message: 'Battle is not in progress' };
+    return { success: false, message: 'Battle is not active' };
   }
 
   const rateKey = `ratelimit:chat:${userId}:${battleId}`;

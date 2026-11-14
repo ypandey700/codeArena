@@ -82,51 +82,78 @@ function initSocket(server) {
       }
     });
 
-    socket.on('match_accept', async (data) => {
+    socket.on('match_accept', async (data, ack) => {
       try {
         const battleId = data?.battleId;
-        if (battleId) await acceptMatch(battleId, userId);
+        if (!battleId) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Battle ID is required' });
+          return;
+        }
+        const result = await acceptMatch(battleId, userId);
+        if (typeof ack === 'function') ack(result);
       } catch (err) {
+        if (typeof ack === 'function') ack({ success: false, message: err.message });
       }
     });
 
-    socket.on('match_decline', async (data) => {
+    socket.on('match_decline', async (data, ack) => {
       try {
         const battleId = data?.battleId;
-        if (battleId) await declineMatch(battleId, userId);
+        if (!battleId) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Battle ID is required' });
+          return;
+        }
+        const result = await declineMatch(battleId, userId);
+        if (typeof ack === 'function') ack(result);
       } catch (err) {
+        if (typeof ack === 'function') ack({ success: false, message: err.message });
       }
     });
 
     socket.on('battle_join', async (data, ack) => {
       try {
         const battleId = data?.battleId;
-        if (!battleId) return;
-        const state = await getBattleState(battleId, userId);
-        if (state) {
-          socket.emit('battle_state', state);
-          if (typeof ack === 'function') ack({ success: true, data: state });
+        if (!battleId) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Battle ID is required' });
+          return;
+        }
+        const res = await getBattleState(battleId, userId);
+        if (res.success) {
+          socket.emit('battle_state', res.data);
+          if (typeof ack === 'function') ack(res);
+        } else {
+          if (typeof ack === 'function') ack(res);
         }
       } catch (err) {
         if (typeof ack === 'function') ack({ success: false, message: err.message });
       }
     });
 
-    socket.on('battle_forfeit', async (data) => {
+    socket.on('battle_forfeit', async (data, ack) => {
       try {
         const battleId = data?.battleId;
-        if (battleId) await forfeitBattle(battleId, userId);
+        if (!battleId) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Battle ID is required' });
+          return;
+        }
+        const result = await forfeitBattle(battleId, userId);
+        if (typeof ack === 'function') ack(result);
       } catch (err) {
+        if (typeof ack === 'function') ack({ success: false, message: err.message });
       }
     });
 
-    socket.on('battle_chat', async (data) => {
+    socket.on('battle_chat', async (data, ack) => {
       try {
         const { battleId, text } = data || {};
-        if (battleId && text) {
-          await handleChatMessage(battleId, userId, text);
+        if (!battleId) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Battle ID is required' });
+          return;
         }
+        const result = await handleChatMessage(battleId, userId, text);
+        if (typeof ack === 'function') ack(result);
       } catch (err) {
+        if (typeof ack === 'function') ack({ success: false, message: err.message });
       }
     });
 
