@@ -65,13 +65,7 @@ function MainLayout() {
       )}
 
       <div className="flex-1">
-        {duelState === "report" ? (
-          <PostMatchResults
-            onClose={() => setDuelState("closed")}
-            onContinue={() => setDuelState("report_full")}
-            onQueueNext={handleQuickDuel}
-          />
-        ) : duelState === "report_full" ? (
+        {duelState === "report" || duelState === "report_full" ? (
           <PostMortemReport
             onBack={() => setDuelState("closed")}
             onReplay={() => setDuelState("battle")}
@@ -93,6 +87,18 @@ function MainLayout() {
             <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
             <Route
               path="/match-report"
+              element={
+                <ProtectedRoute>
+                  <PostMortemReport
+                    onBack={() => setDuelState("closed")}
+                    onReplay={() => setDuelState("battle")}
+                    onQueueNext={handleQuickDuel}
+                  />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/match-report/:id"
               element={
                 <ProtectedRoute>
                   <PostMortemReport

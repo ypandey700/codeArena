@@ -192,6 +192,7 @@ export function MatchFound({ onClose, onAccepted }) {
 
   const [seconds, setSeconds] = useState(calculateRemainingSeconds);
   const lastSoundRef = useRef(null);
+  const acceptingRef = useRef(false);
 
   useEffect(() => {
     setSeconds(calculateRemainingSeconds());
@@ -210,9 +211,12 @@ export function MatchFound({ onClose, onAccepted }) {
   }, [seconds]);
 
   const handleAccept = () => {
-    if (seconds === 0 || hasAccepted) return;
+    if (acceptingRef.current || seconds === 0 || hasAccepted) return;
+    acceptingRef.current = true;
     playTone(880);
-    acceptMatch();
+    acceptMatch(() => {
+      acceptingRef.current = false;
+    });
     onAccepted?.();
   };
 

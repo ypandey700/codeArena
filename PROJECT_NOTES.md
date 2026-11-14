@@ -39,3 +39,21 @@
 - Implement socket reconnect / battle re-sync on frontend page refresh via `battle_join`.
 - Multi-language test runner UI integration with sample test execution (`POST /api/v1/submissions/run`).
 - Additional battle modes: private friend duels and AI interview challenge.
+
+## Progress (F2: Battle Room Wiring)
+### Finished in F2:
+- Reconnect and state resync on socket reconnect & refresh via `battle_join` ack and `GET /battles/active`.
+- Socket ack callback handlers for `match_accept`, `match_decline`, `battle_forfeit`, and `battle_chat` with error reporting inside chat stream.
+- Unified ISO string/timestamp converter and server time offset synchronization for duel countdown.
+- Problem data binding (title, difficulty badge, description, constraints, sample test cases).
+- Per-language code buffer in memory ref (`codeByLangRef`), preserving user code edits across language tab switching and editor inputs.
+- Evaluation runner (`POST /api/v1/submissions/run`) and duel submission (`POST /api/v1/battles/:id/submit`) with busy/running state, disabled action buttons, and friendly 429 rate limit error messaging.
+- Real-time opponent progress tracking (`opponent_progress`) and own progress (`submission_result`) with 100% capped progress bars and count metrics in HUD and comms stream.
+- Live duel tactical comms widget with real socket delivery (`battle_chat`, `battle_chat_message`), left/right alignments, quick phrases, unread count badge, and error notifications.
+- Compact Top HUD and stakes display binding real usernames, ratings, tiers, avatars, and win/loss ratingPreview deltas.
+- Duel forfeit with confirmation dialog emitting `battle_forfeit`.
+- Disconnect banner with live countdown from `graceSeconds` for `opponent_disconnected`, cleared on `opponent_reconnected`.
+- Removed interview step completely from 1v1 battle flow, simplifying action to "Submit Solution".
+
+### Left in F2:
+- None for core 1v1 battle room wiring. (Next features from backlog: private friend duels and custom match lobbies).

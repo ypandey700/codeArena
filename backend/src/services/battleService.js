@@ -171,6 +171,12 @@ const formatBattleEndShape = (battle) => {
     status: battle.status,
     winner: battle.winner ? String(battle.winner) : null,
     reason: battle.reason || null,
+    problem: battle.problem && typeof battle.problem === 'object' ? {
+      title: battle.problem.title,
+      slug: battle.problem.slug,
+      difficulty: battle.problem.difficulty,
+      category: battle.problem.category,
+    } : null,
     players: [formatPlayer(p0, u0), formatPlayer(p1, u1)],
     timeline: (battle.timeline || []).map((t) => ({
       user: String(t.user),

@@ -141,20 +141,20 @@ pre, code, pre *, code *, textarea {
 <!-- Right: Radiant #11 Badge, Notification, Profile -->
 <div class="flex items-center gap-2.5">
 <div class="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded bg-surface-container-high border border-white/[0.06]">
-<span class="font-mono-code text-[11px] font-bold text-primary-container tracking-wider uppercase leading-none">RADIANT #11</span>
+<span class="font-mono-code text-[11px] font-bold text-primary-container tracking-wider uppercase leading-none" id="header-player-tier">RADIANT #11</span>
 <span class="text-white/20">•</span>
-<span class="font-mono-code text-[10px] text-muted leading-tight">480 RR</span>
+<span class="font-mono-code text-[10px] text-muted leading-tight" id="header-player-rating">480 RR</span>
 </div>
 <button aria-label="Notifications" class="relative p-1.5 rounded-lg bg-surface-container-high border border-white/[0.06] text-muted hover:text-white transition-all" type="button">
 <span class="material-symbols-outlined text-[18px]">notifications</span>
 <span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-error ring-1 ring-[#121414]"></span>
 </button>
 <div class="flex items-center gap-2 pl-1 cursor-pointer group">
-<div class="w-8 h-8 rounded-full ring-1.5 ring-primary-container/80 ring-offset-2 ring-offset-[#121414] bg-surface-container-high flex items-center justify-center overflow-hidden">
+<div class="w-8 h-8 rounded-full ring-1.5 ring-primary-container/80 ring-offset-2 ring-offset-[#121414] bg-surface-container-high flex items-center justify-center overflow-hidden" id="header-player-avatar">
 <span class="material-symbols-outlined text-primary-container text-[18px]">person</span>
 </div>
 <div class="hidden md:flex flex-col text-left">
-<span class="text-xs font-semibold text-white group-hover:text-primary-container transition-colors leading-none">v0id_runner</span>
+<span class="text-xs font-semibold text-white group-hover:text-primary-container transition-colors leading-none" id="header-player-username">v0id_runner</span>
 <span class="font-mono-code text-[9px] text-emerald-400 leading-tight mt-0.5">In Match</span>
 </div>
 </div>
@@ -169,38 +169,38 @@ pre, code, pre *, code *, textarea {
 <!-- LEFT: YOU (v0id_runner) -->
 <div class="md:col-span-4 flex items-center justify-between gap-3 bg-surface-container/70 rounded-md px-3 py-1.5 border border-white/[0.04]">
 <div class="flex items-center gap-2.5 min-w-0">
-<div class="w-7 h-7 rounded bg-surface-container-highest border border-primary-container/30 flex items-center justify-center text-primary-container flex-shrink-0">
+<div class="w-7 h-7 rounded bg-surface-container-highest border border-primary-container/30 flex items-center justify-center text-primary-container flex-shrink-0 overflow-hidden" id="hud-my-avatar">
 <span class="material-symbols-outlined text-[16px]">terminal</span>
 </div>
 <div class="flex items-center gap-2 min-w-0">
 
-<span class="px-1.5 py-0.2 rounded bg-primary-container text-on-primary font-caption text-[10px] font-bold">YOU</span>
-<span class="font-mono text-[11px] text-primary-container font-semibold">RAD #11</span>
+<span class="px-1.5 py-0.2 rounded bg-primary-container text-on-primary font-caption text-[10px] font-bold" id="hud-my-name-tag">YOU</span>
+<span class="font-mono text-[11px] text-primary-container font-semibold" id="hud-my-tier">RAD #11</span>
 <span class="text-white/20 hidden sm:inline">•</span>
-<span class="font-mono text-[11px] text-muted hidden sm:inline">480 RR</span>
-<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-surface-tint font-caption text-[10px]">Python 3.11</span>
+<span class="font-mono text-[11px] text-muted hidden sm:inline" id="hud-my-rating">480 RR</span>
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-surface-tint font-caption text-[10px]" id="hud-my-lang">Python 3.11</span>
 </div>
 </div>
 <!-- Progress pill -->
 <div class="flex items-center gap-1.5 flex-shrink-0">
 <div class="w-16 h-1.5 rounded-full bg-surface-container-lowest overflow-hidden">
-<div class="h-full bg-primary-container rounded-full" style="width: 80%"></div>
+<div class="h-full bg-primary-container rounded-full" id="hud-my-progress-bar" style="width: 0%"></div>
 </div>
-<span class="font-mono text-[11px] font-bold text-primary-container">12<span class="text-muted font-normal">/15</span></span>
+<span class="font-mono text-[11px] font-bold text-primary-container" id="hud-my-progress-text">0<span class="text-muted font-normal">/15</span></span>
 </div>
 </div>
 <!-- CENTER: TIMER & COMPACT STAKES -->
 <div class="md:col-span-4 flex items-center justify-center gap-4 bg-surface-container-lowest/80 rounded-md py-1.5 px-3 border border-white/[0.03]">
 <div class="flex items-center gap-1.5">
 <span class="w-2 h-2 rounded-full bg-error animate-ping"></span>
-<span class="font-mono text-base font-bold text-on-surface tracking-wider" id="duel-timer">05:50</span>
+<span class="font-mono text-base font-bold text-on-surface tracking-wider" id="duel-timer">15:00</span>
 <span class="font-caption text-[10px] text-muted uppercase tracking-wider">LEFT</span>
 </div>
 <div class="h-3 w-px bg-white/[0.1]"></div>
 <div class="flex items-center gap-2 text-[11px] font-mono">
-<span class="text-primary-container font-semibold">+35 RR</span>
+<span class="text-primary-container font-semibold" id="hud-stakes-win">+35 RR</span>
 <span class="text-white/20">/</span>
-<span class="text-error font-semibold">-22 RR</span>
+<span class="text-error font-semibold" id="hud-stakes-loss">-22 RR</span>
 </div>
 <div class="h-3 w-px bg-white/[0.1]"></div>
 <button class="text-muted hover:text-error transition-colors font-caption text-[10px] uppercase tracking-wider flex items-center gap-0.5" id="concede-btn" title="Concede Round">
@@ -211,20 +211,20 @@ pre, code, pre *, code *, textarea {
 <div class="md:col-span-4 flex items-center justify-between gap-3 bg-surface-container/70 rounded-md px-3 py-1.5 border border-white/[0.04]">
 <!-- Opponent Progress pill -->
 <div class="flex items-center gap-1.5 flex-shrink-0">
-<span class="font-mono text-[11px] font-bold text-secondary">9<span class="text-muted font-normal">/15</span></span>
+<span class="font-mono text-[11px] font-bold text-secondary" id="hud-opp-progress-text">0<span class="text-muted font-normal">/15</span></span>
 <div class="w-16 h-1.5 rounded-full bg-surface-container-lowest overflow-hidden">
-<div class="h-full bg-secondary rounded-full" style="width: 60%"></div>
+<div class="h-full bg-secondary rounded-full" id="hud-opp-progress-bar" style="width: 0%"></div>
 </div>
 </div>
 <div class="flex items-center justify-end gap-2.5 min-w-0">
 <div class="flex items-center justify-end gap-2 min-w-0">
-<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-secondary font-caption text-[10px]">Rust 1.76</span>
-<span class="font-mono text-[11px] text-muted hidden sm:inline">2,385 SR</span>
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-secondary font-caption text-[10px]" id="hud-opp-lang">Duel</span>
+<span class="font-mono text-[11px] text-muted hidden sm:inline" id="hud-opp-rating">1,200 RR</span>
 <span class="text-white/20 hidden sm:inline">•</span>
-<span class="font-mono text-[11px] text-secondary font-semibold">IMMORTAL 3</span>
-<span class="font-label-md text-on-surface text-xs truncate">KageNinja_99</span>
+<span class="font-mono text-[11px] text-secondary font-semibold" id="hud-opp-tier">BRONZE</span>
+<span class="font-label-md text-on-surface text-xs truncate" id="hud-opp-username">Challenger</span>
 </div>
-<div class="w-7 h-7 rounded bg-surface-container-highest border border-white/[0.08] flex items-center justify-center text-secondary flex-shrink-0">
+<div class="w-7 h-7 rounded bg-surface-container-highest border border-white/[0.08] flex items-center justify-center text-secondary flex-shrink-0 overflow-hidden" id="hud-opp-avatar">
 <span class="material-symbols-outlined text-[16px]">sports_martial_arts</span>
 </div>
 </div>
@@ -237,8 +237,8 @@ pre, code, pre *, code *, textarea {
 <section class="flex flex-col bg-surface-container-low rounded-lg border border-white/[0.06] shadow-md overflow-hidden transition-all duration-300 w-full lg:w-[35%]" id="question-panel" style="min-width: 280px; max-width: 65%;">
 <!-- Question Header Bar with Interactive Resizing & Font Controls -->
 <div class="px-3 py-2 bg-surface-container flex items-center justify-between border-b border-white/[0.06] flex-shrink-0">
-<div class="flex items-center gap-2 min-w-0"><span class="px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-400 border border-emerald-400/30 font-caption text-[10px] font-bold flex-shrink-0">EASY</span>
-<h2 class="font-label-md text-on-surface truncate text-xs" title="#1: Two Sum">#1: Two Sum</h2></div>
+<div class="flex items-center gap-2 min-w-0"><span class="px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-400 border border-emerald-400/30 font-caption text-[10px] font-bold flex-shrink-0" id="problem-difficulty-badge">EASY</span>
+<h2 class="font-label-md text-on-surface truncate text-xs" title="Two Sum" id="problem-title">Two Sum</h2></div>
 </div>
 <!-- Tabs Subheader -->
 <div class="px-3 py-1.5 bg-surface-container-low border-b border-white/[0.04] flex items-center justify-between flex-shrink-0" id="question-tabs-container">
@@ -392,7 +392,7 @@ Complexity Quotas
 1v1 Duel Comms
 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
 </h4>
-<p class="font-mono text-[10px] text-muted">Opponent: <span class="text-secondary">KageNinja_99</span></p>
+<p class="font-mono text-[10px] text-muted">Opponent: <span class="text-secondary" id="chat-opp-name">Challenger</span></p>
 </div>
 </div>
 <div class="flex items-center gap-1">
@@ -409,43 +409,8 @@ Complexity Quotas
 <!-- System Start -->
 <div class="text-center my-0.5">
 <span class="px-2 py-0.5 rounded-full bg-surface-container text-muted font-mono text-[10px] inline-block border border-white/[0.04]">
-⚡ Duel initialized • Raft Enforced
+⚡ Duel initialized • 1v1 Battle Mode
 </span>
-</div>
-<!-- Opponent Message -->
-<div class="flex flex-col items-start space-y-0.5">
-<div class="flex items-center gap-1.5 text-muted text-[10px] font-mono">
-<span class="text-secondary font-semibold">KageNinja_99</span>
-<span>07:58</span>
-</div>
-<div class="p-2 rounded-lg rounded-tl-none bg-surface-container text-on-surface text-xs max-w-[85%] border border-white/[0.04]">
-Good luck! That Raft clock drift test case is tricky.
-</div>
-</div>
-<!-- Player Message -->
-<div class="flex flex-col items-end space-y-0.5">
-<div class="flex items-center gap-1.5 text-muted text-[10px] font-mono">
-<span>07:54</span>
-<span class="text-primary-container font-semibold">You</span>
-</div>
-<div class="p-2 rounded-lg rounded-tr-none bg-primary-container text-on-primary font-semibold text-xs max-w-[85%] shadow-sm">
-Thanks, sticking to O(1) doubly linked list + hash map.
-</div>
-</div>
-<!-- Opponent Milestone Notification -->
-<div class="p-1.5 rounded bg-surface-container-lowest text-surface-tint font-mono text-[10px] flex items-center gap-1.5 border border-white/[0.04]">
-<span class="material-symbols-outlined text-[14px] text-primary-container">bolt</span>
-<span>KageNinja_99 passed <strong>Test Case #9</strong></span>
-</div>
-<!-- Opponent Message 2 -->
-<div class="flex flex-col items-start space-y-0.5">
-<div class="flex items-center gap-1.5 text-muted text-[10px] font-mono">
-<span class="text-secondary font-semibold">KageNinja_99</span>
-<span>07:46</span>
-</div>
-<div class="p-2 rounded-lg rounded-tl-none bg-surface-container text-on-surface text-xs max-w-[85%] border border-white/[0.04]">
-Nice pace! Just refactoring my quorum check.
-</div>
 </div>
 </div>
 <!-- Quick Tactical Esports Emotes -->
@@ -471,11 +436,11 @@ Nice pace! Just refactoring my quorum check.
 <button class="group flex items-center gap-2.5 px-3 py-2 rounded-full bg-surface-container-high hover:bg-surface-bright border border-primary-container/40 text-on-surface transition-all active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.6)] hover:border-primary-container" id="floating-chat-trigger" title="Open Opponent Comms">
 <div class="relative flex items-center justify-center">
 <span class="material-symbols-outlined text-primary-container text-[20px] group-hover:scale-110 transition-transform">forum</span>
-<span class="absolute -top-1 -right-1.5 w-3.5 h-3.5 rounded-full bg-error text-white font-mono text-[9px] font-bold flex items-center justify-center" id="chat-unread-badge">1</span>
+<span class="absolute -top-1 -right-1.5 w-3.5 h-3.5 rounded-full bg-error text-white font-mono text-[9px] font-bold flex items-center justify-center hidden" id="chat-unread-badge">0</span>
 </div>
 <div class="flex flex-col text-left pr-1">
 <span class="font-label-sm text-xs leading-none text-white">Comms</span>
-<span class="font-mono text-[9px] text-muted leading-tight mt-0.5">vs KageNinja_99</span>
+<span class="font-mono text-[9px] text-muted leading-tight mt-0.5" id="chat-trigger-sub">vs Challenger</span>
 </div>
 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
 </button>
@@ -501,20 +466,7 @@ Nice pace! Just refactoring my quorum check.
 </footer>
 <!-- SCRIPTS: RESIZING CONTROLS, FLOATING CHAT, TIMER, TABS -->
 <script>
-  // Countdown Timer Logic
-  let totalSeconds = 7 * 60 + 39;
-  const timerElement = document.getElementById('duel-timer');
-  const timerInterval = setInterval(() => {
-    if (totalSeconds <= 0) {
-      clearInterval(timerInterval);
-      if (timerElement) timerElement.innerText = "00:00";
-      return;
-    }
-    totalSeconds--;
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    if (timerElement) timerElement.innerText = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  }, 1000);
+
 
   // Question Pane Resizing & Zoom Controls
   const questionPanel = document.getElementById('question-panel');
@@ -664,48 +616,6 @@ Nice pace! Just refactoring my quorum check.
 
   if (chatTrigger) chatTrigger.addEventListener('click', toggleChat);
   if (chatCloseBtn) chatCloseBtn.addEventListener('click', toggleChat);
-
-  // Chat message sending
-  const chatForm = document.getElementById('chat-form');
-  const chatInput = document.getElementById('chat-input');
-  const chatStream = document.getElementById('chat-stream');
-
-  function appendPlayerMessage(msg) {
-    if (!msg.trim()) return;
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'flex flex-col items-end space-y-0.5';
-    wrapper.innerHTML = `
-      <div class="flex items-center gap-1.5 text-muted text-[10px] font-mono">
-        <span>${timeStr}</span>
-        <span class="text-primary-container font-semibold">You</span>
-      </div>
-      <div class="p-2 rounded-lg rounded-tr-none bg-primary-container text-on-primary font-semibold text-xs max-w-[85%] shadow-sm">
-        ${String(msg).replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"}[ch]))}
-      </div>
-    `;
-    chatStream.appendChild(wrapper);
-    chatStream.scrollTop = chatStream.scrollHeight;
-  }
-
-  if (chatForm) {
-    chatForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const val = chatInput.value;
-      if (val) {
-        appendPlayerMessage(val);
-        chatInput.value = '';
-      }
-    });
-  }
-
-  document.querySelectorAll('.quick-phrase-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      appendPlayerMessage(btn.innerText.trim());
-    });
-  });
 
   // Run tests button effect
   const runBtn = document.getElementById('run-local-tests-btn');
