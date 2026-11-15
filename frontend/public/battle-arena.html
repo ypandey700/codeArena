@@ -117,7 +117,7 @@ pre, code, pre *, code *, textarea {
 <div class="flex flex-col">
 <span class="font-bold text-xs tracking-widest uppercase text-white leading-none">Code Arena</span>
 <span class="font-mono-code text-[10px] text-emerald-400 leading-tight flex items-center gap-1 mt-0.5">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Online • 14ms
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Arena
           </span>
 </div>
 </div>
@@ -141,9 +141,9 @@ pre, code, pre *, code *, textarea {
 <!-- Right: Radiant #11 Badge, Notification, Profile -->
 <div class="flex items-center gap-2.5">
 <div class="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded bg-surface-container-high border border-white/[0.06]">
-<span class="font-mono-code text-[11px] font-bold text-primary-container tracking-wider uppercase leading-none" id="header-player-tier">RADIANT #11</span>
+<span class="font-mono-code text-[11px] font-bold text-primary-container tracking-wider uppercase leading-none" id="header-player-tier">Unranked</span>
 <span class="text-white/20">•</span>
-<span class="font-mono-code text-[10px] text-muted leading-tight" id="header-player-rating">480 RR</span>
+<span class="font-mono-code text-[10px] text-muted leading-tight" id="header-player-rating">— RR</span>
 </div>
 <button aria-label="Notifications" class="relative p-1.5 rounded-lg bg-surface-container-high border border-white/[0.06] text-muted hover:text-white transition-all" type="button">
 <span class="material-symbols-outlined text-[18px]">notifications</span>
@@ -154,7 +154,7 @@ pre, code, pre *, code *, textarea {
 <span class="material-symbols-outlined text-primary-container text-[18px]">person</span>
 </div>
 <div class="hidden md:flex flex-col text-left">
-<span class="text-xs font-semibold text-white group-hover:text-primary-container transition-colors leading-none" id="header-player-username">v0id_runner</span>
+<span class="text-xs font-semibold text-white group-hover:text-primary-container transition-colors leading-none" id="header-player-username">You</span>
 <span class="font-mono-code text-[9px] text-emerald-400 leading-tight mt-0.5">In Match</span>
 </div>
 </div>
@@ -166,7 +166,7 @@ pre, code, pre *, code *, textarea {
 <!-- STREAMLINED COMPACT HUD -->
 <section class="w-full bg-surface-container-low/95 border border-white/[0.06] rounded-lg px-3 py-2 shadow-lg relative overflow-hidden backdrop-blur-md">
 <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
-<!-- LEFT: YOU (v0id_runner) -->
+<!-- LEFT: YOU (You) -->
 <div class="md:col-span-4 flex items-center justify-between gap-3 bg-surface-container/70 rounded-md px-3 py-1.5 border border-white/[0.04]">
 <div class="flex items-center gap-2.5 min-w-0">
 <div class="w-7 h-7 rounded bg-surface-container-highest border border-primary-container/30 flex items-center justify-center text-primary-container flex-shrink-0 overflow-hidden" id="hud-my-avatar">
@@ -175,10 +175,10 @@ pre, code, pre *, code *, textarea {
 <div class="flex items-center gap-2 min-w-0">
 
 <span class="px-1.5 py-0.2 rounded bg-primary-container text-on-primary font-caption text-[10px] font-bold" id="hud-my-name-tag">YOU</span>
-<span class="font-mono text-[11px] text-primary-container font-semibold" id="hud-my-tier">RAD #11</span>
+<span class="font-mono text-[11px] text-primary-container font-semibold" id="hud-my-tier">Unranked</span>
 <span class="text-white/20 hidden sm:inline">•</span>
-<span class="font-mono text-[11px] text-muted hidden sm:inline" id="hud-my-rating">480 RR</span>
-<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-surface-tint font-caption text-[10px]" id="hud-my-lang">Python 3.11</span>
+<span class="font-mono text-[11px] text-muted hidden sm:inline" id="hud-my-rating">— RR</span>
+<span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-surface-tint font-caption text-[10px]" id="hud-my-lang">Python 3</span>
 </div>
 </div>
 <!-- Progress pill -->
@@ -186,32 +186,32 @@ pre, code, pre *, code *, textarea {
 <div class="w-16 h-1.5 rounded-full bg-surface-container-lowest overflow-hidden">
 <div class="h-full bg-primary-container rounded-full" id="hud-my-progress-bar" style="width: 0%"></div>
 </div>
-<span class="font-mono text-[11px] font-bold text-primary-container" id="hud-my-progress-text">0<span class="text-muted font-normal">/15</span></span>
+<span class="font-mono text-[11px] font-bold text-primary-container" id="hud-my-progress-text">0<span class="text-muted font-normal">/0</span></span>
 </div>
 </div>
 <!-- CENTER: TIMER & COMPACT STAKES -->
 <div class="md:col-span-4 flex items-center justify-center gap-4 bg-surface-container-lowest/80 rounded-md py-1.5 px-3 border border-white/[0.03]">
 <div class="flex items-center gap-1.5">
 <span class="w-2 h-2 rounded-full bg-error animate-ping"></span>
-<span class="font-mono text-base font-bold text-on-surface tracking-wider" id="duel-timer">15:00</span>
+<span class="font-mono text-base font-bold text-on-surface tracking-wider" id="duel-timer">00:00</span>
 <span class="font-caption text-[10px] text-muted uppercase tracking-wider">LEFT</span>
 </div>
 <div class="h-3 w-px bg-white/[0.1]"></div>
 <div class="flex items-center gap-2 text-[11px] font-mono">
-<span class="text-primary-container font-semibold" id="hud-stakes-win">+35 RR</span>
+<span class="text-primary-container font-semibold" id="hud-stakes-win">Pending</span>
 <span class="text-white/20">/</span>
-<span class="text-error font-semibold" id="hud-stakes-loss">-22 RR</span>
+<span class="text-error font-semibold" id="hud-stakes-loss">Pending</span>
 </div>
 <div class="h-3 w-px bg-white/[0.1]"></div>
 <button class="text-muted hover:text-error transition-colors font-caption text-[10px] uppercase tracking-wider flex items-center gap-0.5" id="concede-btn" title="Concede Round">
 <span class="material-symbols-outlined text-[12px]">flag</span> Concede
 </button>
 </div>
-<!-- RIGHT: OPPONENT (KageNinja_99) -->
+<!-- RIGHT: OPPONENT (Opponent) -->
 <div class="md:col-span-4 flex items-center justify-between gap-3 bg-surface-container/70 rounded-md px-3 py-1.5 border border-white/[0.04]">
 <!-- Opponent Progress pill -->
 <div class="flex items-center gap-1.5 flex-shrink-0">
-<span class="font-mono text-[11px] font-bold text-secondary" id="hud-opp-progress-text">0<span class="text-muted font-normal">/15</span></span>
+<span class="font-mono text-[11px] font-bold text-secondary" id="hud-opp-progress-text">0<span class="text-muted font-normal">/0</span></span>
 <div class="w-16 h-1.5 rounded-full bg-surface-container-lowest overflow-hidden">
 <div class="h-full bg-secondary rounded-full" id="hud-opp-progress-bar" style="width: 0%"></div>
 </div>
@@ -219,7 +219,7 @@ pre, code, pre *, code *, textarea {
 <div class="flex items-center justify-end gap-2.5 min-w-0">
 <div class="flex items-center justify-end gap-2 min-w-0">
 <span class="px-1.5 py-0.2 rounded bg-surface-container-highest text-secondary font-caption text-[10px]" id="hud-opp-lang">Duel</span>
-<span class="font-mono text-[11px] text-muted hidden sm:inline" id="hud-opp-rating">1,200 RR</span>
+<span class="font-mono text-[11px] text-muted hidden sm:inline" id="hud-opp-rating">— RR</span>
 <span class="text-white/20 hidden sm:inline">•</span>
 <span class="font-mono text-[11px] text-secondary font-semibold" id="hud-opp-tier">BRONZE</span>
 <span class="font-label-md text-on-surface text-xs truncate" id="hud-opp-username">Challenger</span>
@@ -328,7 +328,7 @@ Complexity Quotas
 <!-- Editor Top Bar: Languages & File Info -->
 <div class="px-3 py-1.5 bg-surface-container flex items-center justify-between border-b border-white/[0.06]">
 <div class="flex items-center gap-1 bg-surface-container-lowest p-0.5 rounded">
-<button class="lang-tab px-2.5 py-0.5 rounded bg-primary-container text-on-primary font-caption text-[11px] font-bold shadow-sm">Python 3.11</button>
+<button class="lang-tab px-2.5 py-0.5 rounded bg-primary-container text-on-primary font-caption text-[11px] font-bold shadow-sm">Python 3</button>
 <button class="lang-tab px-2.5 py-0.5 rounded text-muted hover:text-on-surface font-caption text-[11px] transition-all">JavaScript</button>
 <button class="lang-tab px-2.5 py-0.5 rounded text-muted hover:text-on-surface font-caption text-[11px] transition-all">C++ 20</button>
 <button class="lang-tab px-2.5 py-0.5 rounded text-muted hover:text-on-surface font-caption text-[11px] transition-all">Java 21</button>

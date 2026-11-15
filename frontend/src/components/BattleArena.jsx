@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useBattle, toTimestamp } from "../context/BattleContext";
+import AIInterview from "../pages/AIInterview";
 import api from "../services/api";
 
 const defaultTemplates = [
@@ -45,13 +46,19 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     opponentProgress,
     submissionResult,
     submitBattleCode,
+    saveCodeDraft,
+    finishBattle,
     forfeitBattle,
     opponentDisconnected,
     timeOffset,
+    interview,
   } = useBattle();
 
   const frameRef = useRef(null);
   const [concede, setConcede] = useState(false);
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [draftError, setDraftError] = useState("");
   const [popup, setPopup] = useState(null);
   const [selectedCase, setSelectedCase] = useState(0);
   const popupRef = useRef(null);
@@ -63,6 +70,11 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     java: "",
   });
   const currentLangRef = useRef("python");
+  const draftTimerRef = useRef(null);
+  const lastDraftAtRef = useRef(0);
+  const draftVersionRef = useRef(0);
+  const dirtyRef = useRef(false);
+  const liveRef = useRef({});
 
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -81,34 +93,121 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     activeBattle?.players?.find((p) => p.totalTests > 0)?.totalTests ||
     activeBattle?.ownProgress?.totalTests ||
     activeBattle?.opponentProgress?.totalTests ||
-    (problem?.sampleTestCases?.length || 0) + 5;
+    problem?.sampleTestCases?.length || 0;
 
   const calculateRemainingSeconds = () => {
-    if (!activeBattle?.endsAt) return 900;
+    if (!activeBattle?.endsAt) return 0;
     const now = Date.now() + (timeOffset || 0);
     const end = toTimestamp(activeBattle.endsAt);
-    if (!end) return 900;
+    if (!end) return 0;
     return Math.max(0, Math.floor((end - now) / 1000));
   };
 
   const [remainingTime, setRemainingTime] = useState(calculateRemainingSeconds);
+  const ownFinished = !!activeBattle?.ownFinished || ["interview", "done"].includes(activeBattle?.myPhase);
+  const finalizing = activeBattle?.status === "finalizing";
+  const locked = ownFinished || finalizing || finishing || remainingTime <= 0;
+  liveRef.current = { battle: activeBattle, ownFinished, finalizing, finishing, remainingTime, userId: user?._id };
+
+  const persistEditor = () => {
+    const { battle, userId } = liveRef.current;
+    if (!battle?.battleId) return;
+    try {
+      sessionStorage.setItem(`battle-editor:${battle.battleId}:${userId}`, JSON.stringify({ language: currentLangRef.current, codes: codeByLangRef.current }));
+    } catch {}
+  };
+
+  const syncEditorState = () => {
+    const doc = frameRef.current?.contentDocument;
+    if (!doc) return;
+    const state = liveRef.current;
+    const disabled = state.ownFinished || state.finalizing || state.finishing || state.remainingTime <= 0 || busyRef.current;
+    const editor = doc.getElementById("battle-code-editor");
+    if (editor) editor.readOnly = disabled;
+    for (const id of ["submit-duel-btn", "run-local-tests-btn", "finish-duel-btn", "reset-code-btn"]) {
+      const button = doc.getElementById(id);
+      if (button) button.disabled = disabled;
+    }
+    doc.querySelectorAll(".lang-tab").forEach((tab) => { tab.disabled = disabled; });
+  };
+
+  const publishDraft = async (force = false) => {
+    clearTimeout(draftTimerRef.current);
+    const state = liveRef.current;
+    if (!state.battle || state.ownFinished || state.finalizing || state.remainingTime <= 0) return false;
+    if (!force && !dirtyRef.current) return true;
+    const language = currentLangRef.current;
+    const code = codeByLangRef.current[language];
+    if (typeof code !== "string") return false;
+    const version = draftVersionRef.current;
+    lastDraftAtRef.current = Date.now();
+    try {
+      await saveCodeDraft({ language, code });
+      if (draftVersionRef.current === version) dirtyRef.current = false;
+      setDraftError("");
+      if (dirtyRef.current) scheduleDraft();
+      return true;
+    } catch (error) {
+      if (!liveRef.current.ownFinished && !liveRef.current.finalizing) {
+        setDraftError(error.message);
+        if (dirtyRef.current) scheduleDraft();
+      }
+      return false;
+    }
+  };
+
+  const scheduleDraft = (force = false) => {
+    clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => { publishDraft(force); }, force ? 0 : Math.max(0, 5000 - (Date.now() - lastDraftAtRef.current)));
+  };
+
+  const editorChanged = () => {
+    dirtyRef.current = true;
+    draftVersionRef.current++;
+    persistEditor();
+    scheduleDraft();
+  };
 
   useEffect(() => {
-    if (!problem) return;
+    const flush = () => {
+      if (document.visibilityState === "hidden") publishDraft(true);
+    };
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      clearTimeout(draftTimerRef.current);
+    };
+  }, [activeBattle?.battleId]);
+
+  useEffect(() => {
+    syncEditorState();
+    if (ownFinished || finalizing) {
+      clearTimeout(draftTimerRef.current);
+      setPopup(null);
+      setConfirmFinish(false);
+    }
+  }, [ownFinished, finalizing, finishing, busy, remainingTime]);
+
+  useEffect(() => {
+    if (!problem || !activeBattle?.battleId) return;
+    let saved;
+    try { saved = JSON.parse(sessionStorage.getItem(`battle-editor:${activeBattle.battleId}:${user?._id}`)); } catch {}
     langKeys.forEach((lang, idx) => {
-      if (!codeByLangRef.current[lang]) {
-        codeByLangRef.current[lang] = problem.starterCode?.[lang] || defaultTemplates[idx];
-      }
+      codeByLangRef.current[lang] = saved?.codes?.[lang] ?? problem.starterCode?.[lang] ?? defaultTemplates[idx];
     });
+    currentLangRef.current = langKeys.includes(saved?.language) ? saved.language : "python";
+    dirtyRef.current = false;
     const doc = frameRef.current?.contentDocument;
     const editor = doc?.getElementById("battle-code-editor");
-    if (editor && !editor.value) {
-      editor.value = codeByLangRef.current[currentLangRef.current];
-    }
-  }, [problem]);
+    if (editor) editor.value = codeByLangRef.current[currentLangRef.current];
+    doc?.querySelectorAll(".lang-tab").forEach((tab, index) => {
+      tab.className = index === langKeys.indexOf(currentLangRef.current) ? "lang-tab px-2.5 py-0.5 rounded bg-surface-container-high text-primary-container font-caption text-[11px]" : "lang-tab px-2.5 py-0.5 rounded text-muted hover:text-on-surface font-caption text-[11px]";
+    });
+    syncEditorState();
+  }, [activeBattle?.battleId, problem?.slug, user?._id]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    const tick = () => {
       const rem = calculateRemainingSeconds();
       setRemainingTime(rem);
       const doc = frameRef.current?.contentDocument;
@@ -120,9 +219,11 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
           timerEl.textContent = `${m}:${s}`;
         }
       }
-    }, 1000);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [activeBattle, timeOffset]);
+  }, [activeBattle?.endsAt, timeOffset]);
 
   useEffect(() => {
     if (!opponentDisconnected) {
@@ -150,7 +251,7 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     const hTier = doc.getElementById("header-player-tier");
     if (hTier) hTier.textContent = user?.tier || "RANKED";
     const hRating = doc.getElementById("header-player-rating");
-    if (hRating) hRating.textContent = `${user?.rating || 1200} RR`;
+    if (hRating) hRating.textContent = `${user?.rating ?? "—"} RR`;
     const hUser = doc.getElementById("header-player-username");
     if (hUser) hUser.textContent = user?.username || "You";
     const hAvatar = doc.getElementById("header-player-avatar");
@@ -165,17 +266,17 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     const myTier = doc.getElementById("hud-my-tier");
     if (myTier) myTier.textContent = user?.tier || "RANKED";
     const myRating = doc.getElementById("hud-my-rating");
-    if (myRating) myRating.textContent = `${user?.rating || 1200} RR`;
+    if (myRating) myRating.textContent = `${user?.rating ?? "—"} RR`;
 
     const stakesWin = doc.getElementById("hud-stakes-win");
     if (stakesWin) {
-      const winVal = activeBattle?.ratingPreview?.win ?? 32;
-      stakesWin.textContent = `+${winVal} RR`;
+      const winVal = activeBattle?.ratingPreview?.win;
+      stakesWin.textContent = winVal != null ? `+${winVal} RR` : "Scored result";
     }
     const stakesLoss = doc.getElementById("hud-stakes-loss");
     if (stakesLoss) {
-      const lossVal = activeBattle?.ratingPreview?.loss ?? -16;
-      stakesLoss.textContent = `${lossVal} RR`;
+      const lossVal = activeBattle?.ratingPreview?.loss;
+      stakesLoss.textContent = lossVal != null ? `${lossVal} RR` : "Pending";
     }
 
     const oppUser = doc.getElementById("hud-opp-username");
@@ -183,7 +284,7 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     const oppTier = doc.getElementById("hud-opp-tier");
     if (oppTier) oppTier.textContent = opponent?.tier || "RANKED";
     const oppRating = doc.getElementById("hud-opp-rating");
-    if (oppRating) oppRating.textContent = `${opponent?.rating || 1200} RR`;
+    if (oppRating) oppRating.textContent = `${opponent?.rating ?? "—"} RR`;
     const oppAvatar = doc.getElementById("hud-opp-avatar");
     if (oppAvatar && opponent?.avatar) {
       oppAvatar.innerHTML = `<img src="${opponent.avatar}" alt="" class="h-full w-full object-cover rounded" />`;
@@ -331,7 +432,8 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
   }, [chatMessages, opponentProgress]);
 
   async function execute(submit = false) {
-    if (busyRef.current) return;
+    const state = liveRef.current;
+    if (busyRef.current || state.ownFinished || state.finalizing || state.finishing || state.remainingTime <= 0) return;
     busyRef.current = true;
     setBusy(true);
     setExecution(null);
@@ -389,15 +491,16 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
       busyRef.current = false;
       setBusy(false);
       if (runBtn) {
-        runBtn.disabled = false;
+        runBtn.disabled = liveRef.current.ownFinished || liveRef.current.finalizing;
         const span = runBtn.querySelector("span");
         if (span) span.innerHTML = 'Run Tests <span class="text-muted font-caption text-[10px]">(Ctrl+↵)</span>';
       }
       if (submitBtn) {
-        submitBtn.disabled = false;
+        submitBtn.disabled = liveRef.current.ownFinished || liveRef.current.finalizing;
         const span = submitBtn.querySelector("span:last-child");
         if (span) span.textContent = "SUBMIT SOLUTION (Alt+↵)";
       }
+      syncEditorState();
     }
   }
 
@@ -417,8 +520,8 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     const gutter = doc.querySelector("#editor-wrapper > div:first-child");
 
     const starter =
-      codeByLangRef.current[currentLangRef.current] ||
-      problem?.starterCode?.[currentLangRef.current] ||
+      codeByLangRef.current[currentLangRef.current] ??
+      problem?.starterCode?.[currentLangRef.current] ??
       defaultTemplates[0];
 
     if (editor) {
@@ -439,17 +542,20 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
 
     if (editor) {
       editor.addEventListener("input", () => {
+        if (editor.readOnly) return;
         codeByLangRef.current[currentLangRef.current] = editor.value;
+        editorChanged();
         updateLines();
       });
       editor.addEventListener("scroll", () => {
         gutter.scrollTop = editor.scrollTop;
       });
       editor.addEventListener("keydown", (event) => {
-        if (event.key === "Tab") {
+        if (event.key === "Tab" && !editor.readOnly) {
           event.preventDefault();
           editor.setRangeText("    ", editor.selectionStart, editor.selectionEnd, "end");
           codeByLangRef.current[currentLangRef.current] = editor.value;
+          editorChanged();
           updateLines();
         }
       });
@@ -458,12 +564,16 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     const langTabs = doc.querySelectorAll(".lang-tab");
     langTabs.forEach((tab, index) => {
       tab.addEventListener("click", () => {
+        const state = liveRef.current;
+        if (state.ownFinished || state.finalizing || state.finishing || state.remainingTime <= 0 || busyRef.current) return;
         if (editor) {
           codeByLangRef.current[currentLangRef.current] = editor.value;
         }
 
         const newLang = langKeys[index];
         currentLangRef.current = newLang;
+        dirtyRef.current = true;
+        draftVersionRef.current++;
 
         langTabs.forEach((t) => {
           t.className = "lang-tab px-2.5 py-0.5 rounded text-muted hover:text-on-surface font-caption text-[11px] transition-all";
@@ -479,13 +589,15 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
         }
 
         const nextCode =
-          codeByLangRef.current[newLang] ||
-          problem?.starterCode?.[newLang] ||
+          codeByLangRef.current[newLang] ??
+          problem?.starterCode?.[newLang] ??
           defaultTemplates[index];
 
         if (editor) {
           editor.value = nextCode;
         }
+        persistEditor();
+        scheduleDraft(true);
         updateLines();
       });
     });
@@ -493,12 +605,14 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
     const resetBtn = doc.getElementById("reset-code-btn");
     if (resetBtn) {
       resetBtn.addEventListener("click", () => {
+        if (editor?.readOnly) return;
         const langIdx = langKeys.indexOf(currentLangRef.current);
         const resetVal =
           problem?.starterCode?.[currentLangRef.current] ||
           defaultTemplates[langIdx >= 0 ? langIdx : 0];
         codeByLangRef.current[currentLangRef.current] = resetVal;
         if (editor) editor.value = resetVal;
+        editorChanged();
         updateLines();
       });
     }
@@ -545,6 +659,21 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
       if (submitLabel) submitLabel.textContent = "SUBMIT SOLUTION (Alt+↵)";
       submitBtn.addEventListener("click", () => execute(true));
     }
+
+    let finishBtn = doc.getElementById("finish-duel-btn");
+    if (!finishBtn && submitBtn) {
+      finishBtn = doc.createElement("button");
+      finishBtn.id = "finish-duel-btn";
+      finishBtn.type = "button";
+      finishBtn.className = "px-3 py-2 rounded border border-primary-container/40 text-primary-container bg-surface-container font-mono text-xs disabled:opacity-50";
+      finishBtn.textContent = "FINISH";
+      submitBtn.before(finishBtn);
+      finishBtn.addEventListener("click", () => {
+        const state = liveRef.current;
+        if (!state.ownFinished && !state.finalizing && !state.finishing && !busyRef.current && state.remainingTime > 0) setConfirmFinish(true);
+      });
+    }
+    syncEditorState();
 
     const concedeBtn = doc.getElementById("concede-btn");
     if (concedeBtn) {
@@ -601,22 +730,42 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
       }
     });
 
+    syncEditorState();
     updateLines();
   }
+
+  const handleFinish = async () => {
+    setConfirmFinish(false);
+    setFinishing(true);
+    try {
+      const saved = await publishDraft(true);
+      if (!saved) return;
+      await finishBattle();
+    } catch (error) {
+      setDraftError(error.message);
+    } finally {
+      setFinishing(false);
+    }
+  };
 
   const handleConcede = () => {
     setConcede(false);
     forfeitBattle();
   };
 
-  const sampleCases = problem?.sampleTestCases || [
-    { input: "[2, 7, 11, 15], 9", expectedOutput: "[0, 1]" },
-    { input: "[3, 2, 4], 6", expectedOutput: "[1, 2]" },
-    { input: "[3, 3], 6", expectedOutput: "[0, 1]" },
-  ];
+  const sampleCases = problem?.sampleTestCases || [];
+
+  if (interview?.entered || activeBattle?.myPhase === "done" || finalizing) return <AIInterview embedded />;
 
   return (
     <>
+      {(activeBattle?.opponentFinished || ownFinished || finalizing || finishing || draftError) && (
+        <div role="status" aria-live="polite" className="fixed top-[72px] left-1/2 z-[65] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 rounded-lg border border-[#FDDF49]/40 bg-[#1E2020]/95 px-5 py-3 text-sm text-[#FDDF49] shadow-xl">
+          {finalizing ? <p>Evaluating both solutions…</p> : ownFinished ? <p>Evaluating your solution… your interview starts next</p> : finishing ? <p>Finishing your solution…</p> : null}
+          {activeBattle?.opponentFinished && !finalizing && <p>{opponent?.username || "Opponent"} finished with {activeBattle.opponentProgress?.bestPassed ?? opponentProgress?.passedCount ?? 0}/{activeBattle.opponentProgress?.totalTests ?? totalTests}. You have {Math.floor(remainingTime / 60)}:{String(remainingTime % 60).padStart(2, "0")} left.</p>}
+          {draftError && !ownFinished && !finalizing && <p className="mt-1 text-[#e2e2e2]">Draft not saved: {draftError}</p>}
+        </div>
+      )}
       {disconnectCountdown !== null && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 rounded-lg border border-rose-500/50 bg-[#1a0e10]/95 px-5 py-2.5 text-rose-200 shadow-2xl backdrop-blur-md">
           <span className="h-2.5 w-2.5 animate-ping rounded-full bg-rose-500" />
@@ -635,6 +784,18 @@ export default function BattleArena({ onExit, onQueueNext, onReport }) {
         className="block h-dvh w-full border-0 bg-[#121414]"
       />
 
+      {confirmFinish && !locked && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="finish-heading" className="w-full max-w-sm rounded-xl border border-[#FDDF49]/30 bg-[#1E2020] p-6 text-[#e2e2e2] shadow-2xl">
+            <h2 id="finish-heading" className="text-lg font-semibold text-[#FDDF49]">Finish this solution?</h2>
+            <p className="mt-2 text-sm text-[#9A9A9A]">Your latest code will be evaluated against all tests. You cannot edit or submit after finishing.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button autoFocus onClick={() => setConfirmFinish(false)} className="rounded bg-white/5 px-4 py-2 text-sm">Keep coding</button>
+              <button onClick={handleFinish} className="rounded bg-[#FDDF49] px-4 py-2 text-sm font-bold text-[#211b00]">Finish</button>
+            </div>
+          </div>
+        </div>
+      )}
       {concede && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4">
           <div role="dialog" aria-modal="true" aria-labelledby="concede-heading" className="w-full max-w-sm rounded-xl border border-white/10 bg-[#16191c] p-6 shadow-2xl">

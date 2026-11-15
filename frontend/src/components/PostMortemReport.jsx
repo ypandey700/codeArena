@@ -4,6 +4,14 @@ import { useAuth } from "../context/AuthContext";
 import { useBattle } from "../context/BattleContext";
 import api from "../services/api";
 
+const scoreComponents = [
+  ["correctness", "Correctness", 25], ["speed", "Speed", 8], ["runtime", "Runtime", 7],
+  ["timeComplexity", "Time complexity", 12], ["spaceComplexity", "Space complexity", 3],
+  ["quality", "Code quality", 15], ["interview", "Interview", 30], ["total", "Total", null],
+];
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
+const hasScore = (value) => typeof value === "number" && Number.isFinite(value);
+
 function formatMs(ms) {
   if (ms == null) return "—";
   const s = Math.floor(ms / 1000);
@@ -18,42 +26,48 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
   const params = useParams();
   const navigate = useNavigate();
   const [battleData, setBattleData] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    if (battleResult) {
+    let mounted = true;
+    setLoadError("");
+    if (battleResult && (!params.id || String(params.id) === String(battleResult.battleId))) {
       setBattleData(battleResult);
       return;
     }
+    setBattleData(null);
     const id = params.id || localStorage.getItem("lastBattleId");
-    if (!id) return;
-    api
-      .get(`/battles/${id}`)
-      .then((res) => {
-        if (res.data?.data) {
-          setBattleData(res.data.data);
-        }
-      })
-      .catch(() => {});
+    if (!id) { setLoadError("No match report available."); return; }
+    api.get(`/battles/${id}`).then((res) => {
+      if (!mounted) return;
+      if (res.data?.data?.status === "finished" || res.data?.data?.status === "abandoned") setBattleData(res.data.data);
+      else if (res.data?.data) setLoadError("This duel has not finished yet. Return to the battle room.");
+      else setLoadError("No match report available.");
+    }).catch(() => { if (mounted) setLoadError("Could not load this match report. Refresh to retry."); });
+    return () => { mounted = false; };
   }, [battleResult, params.id]);
 
   function populateDoc(doc, data) {
     if (!doc || !data) return;
 
+    const headerName = doc.getElementById("report-header-username");
+    if (headerName) headerName.textContent = user?.username || "You";
+    const headerTier = doc.getElementById("report-header-tier");
+    if (headerTier) headerTier.textContent = user?.tier || "RANKED";
+    const headerRating = doc.getElementById("report-header-rating");
+    if (headerRating) headerRating.textContent = user?.rating != null ? `${user.rating} RR` : "—";
     const players = data.players || [];
     const myPlayer =
       players.find(
         (p) =>
           (user?._id && String(p.userId) === String(user._id)) ||
           p.username === user?.username
-      ) || players[0];
+      ) || players.find((player) => Array.isArray(player.myTests)) || players[0];
     const oppPlayer = players.find((p) => p !== myPlayer) || players[1];
 
     const winner = data.winner;
     const reason = data.reason;
-    const isWin =
-      winner &&
-      (String(winner) === String(user?._id) ||
-        (myPlayer && myPlayer.ratingDelta > 0));
+    const isWin = !!winner && String(winner) === String(myPlayer?.userId);
     const isDraw = reason === "draw" || !winner;
 
     const verdictText = isWin ? "VICTORY" : isDraw ? "DRAW" : "DEFEAT";
@@ -72,10 +86,10 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
       const reasonMap = {
         solved: isWin ? "Problem Solved (All tests passed)" : "Opponent Solved Problem",
         forfeit: isWin ? "Opponent Forfeited" : "Forfeited",
-        disconnected: isWin ? "Opponent Disconnected" : "Disconnected",
+        disconnect: isWin ? "Opponent Disconnected" : "Disconnected",
         timeout: "Time Expired",
-        time: "Time Expired",
-        draw: "Draw (Time Expired)",
+        time: "Combined Score",
+        draw: "Draw (Scores within 1 point)",
       };
       reasonEl.textContent = reasonMap[reason] || "Match Concluded";
     }
@@ -92,7 +106,7 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
 
     const myDelta = myPlayer?.ratingDelta;
     const myDeltaText =
-      myDelta != null ? (myDelta >= 0 ? `+${myDelta} RR` : `${myDelta} RR`) : "+0 RR";
+      myDelta != null ? (myDelta >= 0 ? `+${myDelta} RR` : `${myDelta} RR`) : "—";
     const myNameEl = doc.getElementById("report-my-username");
     if (myNameEl) myNameEl.textContent = myPlayer?.username || user?.username || "You";
     const myBadgeEl = doc.getElementById("report-my-badge");
@@ -108,20 +122,20 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
     }
     const myStatsEl = doc.getElementById("report-my-stats");
     if (myStatsEl) {
-      myStatsEl.textContent = `${myPlayer?.passedCount ?? 0}/${myPlayer?.totalTests ?? 0} Tests`;
+      myStatsEl.textContent = `${myPlayer?.passedCount ?? "—"}/${myPlayer?.totalTests ?? "—"} Tests`;
     }
     const myDeltaEl = doc.getElementById("report-my-delta");
     if (myDeltaEl) myDeltaEl.innerHTML = `<span>${myDeltaText}</span>`;
     const myAfterEl = doc.getElementById("report-my-after");
     if (myAfterEl) {
-      myAfterEl.textContent = `Now ${myPlayer?.ratingAfter ?? myPlayer?.ratingBefore ?? 1200} RR`;
+      myAfterEl.textContent = `Now ${myPlayer?.ratingAfter ?? myPlayer?.ratingBefore ?? "—"} RR`;
     }
     const myXpEl = doc.getElementById("report-my-xp");
-    if (myXpEl) myXpEl.textContent = `+${myPlayer?.xpGained ?? 0} XP`;
+    if (myXpEl) myXpEl.textContent = myPlayer?.xpGained != null ? `+${myPlayer.xpGained} XP` : "—";
 
     const oppDelta = oppPlayer?.ratingDelta;
     const oppDeltaText =
-      oppDelta != null ? (oppDelta >= 0 ? `+${oppDelta} RR` : `${oppDelta} RR`) : "0 RR";
+      oppDelta != null ? (oppDelta >= 0 ? `+${oppDelta} RR` : `${oppDelta} RR`) : "—";
     const oppNameEl = doc.getElementById("report-opp-username");
     if (oppNameEl) oppNameEl.textContent = oppPlayer?.username || "Rival";
     const oppBadgeEl = doc.getElementById("report-opp-badge");
@@ -137,16 +151,16 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
     }
     const oppStatsEl = doc.getElementById("report-opp-stats");
     if (oppStatsEl) {
-      oppStatsEl.textContent = `${oppPlayer?.passedCount ?? 0}/${oppPlayer?.totalTests ?? myPlayer?.totalTests ?? 0} Tests`;
+      oppStatsEl.textContent = `${oppPlayer?.passedCount ?? "—"}/${oppPlayer?.totalTests ?? myPlayer?.totalTests ?? "—"} Tests`;
     }
     const oppDeltaEl = doc.getElementById("report-opp-delta");
     if (oppDeltaEl) oppDeltaEl.innerHTML = `<span>${oppDeltaText}</span>`;
     const oppAfterEl = doc.getElementById("report-opp-after");
     if (oppAfterEl) {
-      oppAfterEl.textContent = `${oppPlayer?.ratingAfter ?? oppPlayer?.ratingBefore ?? 1200} RR`;
+      oppAfterEl.textContent = `${oppPlayer?.ratingAfter ?? oppPlayer?.ratingBefore ?? "—"} RR`;
     }
     const oppXpEl = doc.getElementById("report-opp-xp");
-    if (oppXpEl) oppXpEl.textContent = `+${oppPlayer?.xpGained ?? 0} XP`;
+    if (oppXpEl) oppXpEl.textContent = oppPlayer?.xpGained != null ? `+${oppPlayer.xpGained} XP` : "—";
 
     const timeDiffEl = doc.getElementById("report-time-diff");
     const timeDiffSubEl = doc.getElementById("report-time-diff-sub");
@@ -189,14 +203,14 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
         velBarMy.style.width = `${myP}%`;
         velBarOpp.style.width = `${100 - myP}%`;
       } else if (myPlayer?.solveTimeMs != null) {
-        velBarMy.style.width = "100%";
+        velBarMy.style.width = "0%";
         velBarOpp.style.width = "0%";
       } else if (oppPlayer?.solveTimeMs != null) {
         velBarMy.style.width = "0%";
-        velBarOpp.style.width = "100%";
+        velBarOpp.style.width = "0%";
       } else {
-        velBarMy.style.width = "50%";
-        velBarOpp.style.width = "50%";
+        velBarMy.style.width = "0%";
+        velBarOpp.style.width = "0%";
       }
     }
     const velNote = doc.getElementById("report-velocity-note");
@@ -226,36 +240,36 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
         runBarMy.style.width = `${myP}%`;
         runBarOpp.style.width = `${100 - myP}%`;
       } else if (myPlayer?.runtimeMs != null) {
-        runBarMy.style.width = "100%";
+        runBarMy.style.width = "0%";
         runBarOpp.style.width = "0%";
       } else if (oppPlayer?.runtimeMs != null) {
         runBarMy.style.width = "0%";
-        runBarOpp.style.width = "100%";
+        runBarOpp.style.width = "0%";
       } else {
-        runBarMy.style.width = "50%";
-        runBarOpp.style.width = "50%";
+        runBarMy.style.width = "0%";
+        runBarOpp.style.width = "0%";
       }
     }
     const runNote = doc.getElementById("report-runtime-note");
     if (runNote) {
       runNote.textContent =
         myPlayer?.runtimeMs != null
-          ? `Sandbox execution latency: ${myPlayer.runtimeMs}ms.`
+          ? `Total test runtime: ${myPlayer.runtimeMs}ms.`
           : "No execution runtime recorded.";
     }
 
     const legMy = doc.getElementById("report-timeline-legend-my");
     if (legMy) {
-      legMy.innerHTML = `<span class="w-3 h-1 bg-primary-container rounded"></span> You (${myPlayer?.passedCount ?? 0}/${myPlayer?.totalTests ?? 0})`;
+      legMy.innerHTML = `<span class="w-3 h-1 bg-primary-container rounded"></span> You (${myPlayer?.passedCount ?? "—"}/${myPlayer?.totalTests ?? "—"})`;
     }
     const legOpp = doc.getElementById("report-timeline-legend-opp");
     if (legOpp) {
-      legOpp.innerHTML = `<span class="w-3 h-1 bg-muted rounded border border-dashed border-muted"></span> ${oppPlayer?.username || "Rival"} (${oppPlayer?.passedCount ?? 0}/${oppPlayer?.totalTests ?? myPlayer?.totalTests ?? 0})`;
+      legOpp.innerHTML = `<span class="w-3 h-1 bg-muted rounded border border-dashed border-muted"></span> ${escapeHtml(oppPlayer?.username || "Rival")} (${oppPlayer?.passedCount ?? "—"}/${oppPlayer?.totalTests ?? myPlayer?.totalTests ?? "—"})`;
     }
 
     const circuitStatus = doc.getElementById("report-circuit-status");
     if (circuitStatus) {
-      circuitStatus.textContent = `Combat Streak: ${user?.stats?.streak ?? 0} • Current MMR: ${Number(user?.rating ?? 1200).toLocaleString()} RR`;
+      circuitStatus.textContent = user?.rating != null ? `Current MMR: ${Number(user.rating).toLocaleString()} RR` : "Ranked Duel";
     }
     const tierBadge = doc.getElementById("report-tier-badge");
     if (tierBadge) {
@@ -267,12 +281,105 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
       addFriendLabel.textContent = `Add ${oppPlayer?.username || "Friend"} (Soon)`;
     }
 
+    renderScores(doc, data, myPlayer, oppPlayer);
+
     renderTimeline(
       doc,
       data.timeline || [],
       myPlayer?.userId || user?._id,
-      myPlayer?.totalTests || 15
+      myPlayer?.totalTests || 0
     );
+  }
+
+  function renderScores(doc, data, me, opponent) {
+    const pair = [me, opponent];
+    const names = ["You", opponent?.username || "Opponent"];
+    const winnerClass = (player) => data.winner && String(data.winner) === String(player?.userId) ? "score-winner" : "";
+    const setHtml = (id, html) => { const element = doc.getElementById(id); if (element) element.innerHTML = html; };
+    ["my", "opp"].forEach((side, index) => {
+      doc.getElementById(`report-${side}-card`)?.classList.toggle("score-winner", !!winnerClass(pair[index]));
+    });
+    setHtml("report-score-head", `<tr><th class="score-cell">Component</th><th class="score-cell">Weight</th>${pair.map((player, index) => `<th class="score-cell ${winnerClass(player)}">${escapeHtml(names[index])}${winnerClass(player) ? " · Winner" : ""}<span class="block text-xs text-muted mt-1">Finished: ${escapeHtml(player?.finishedBy || "unavailable")}</span></th>`).join("")}</tr>`);
+    setHtml("report-score-rows", scoreComponents.map(([key, label, weight]) => `<tr><th class="score-cell ${key === "total" ? "text-primary-container" : "text-on-surface"}">${label}</th><td class="score-cell text-muted">${weight ?? "Renormalized"}</td>${pair.map((player, index) => {
+      const value = player?.scores?.[key];
+      return `<td class="score-cell ${winnerClass(player)}">${hasScore(value) ? `${value.toFixed(1)}<div class="score-track"><div class="score-fill ${index ? "opponent" : ""}" style="width:${Math.max(0, Math.min(100, value))}%"></div></div>` : '<span class="text-muted">pending</span>'}</td>`;
+    }).join("")}</tr>`).join(""));
+    const displayNumber = (value) => hasScore(value) ? String(value) : "pending";
+    const interviewScore = (player) => player?.scores ? player.scores.interview : player?.interview?.score;
+    setHtml("report-oral-defense", pair.map((player, index) => `<div class="flex justify-between gap-3"><span class="text-muted">${escapeHtml(names[index])}</span><span class="font-mono ${index ? "text-on-surface" : "text-primary-container"}">${displayNumber(interviewScore(player))}</span></div>`).join(""));
+    setHtml("report-interview-summary", pair.map((player, index) => {
+      const details = player?.interview;
+      return `<div class="rounded-lg bg-surface-container-lowest p-4"><h4 class="text-primary-container">${escapeHtml(names[index])}</h4><p class="mt-3">Interview score: <span class="font-mono">${displayNumber(interviewScore(player))}</span></p><p class="mt-2">Understanding: ${displayNumber(details?.understanding)} / 10</p><p class="mt-2">Answered: ${Number.isInteger(details?.answered) ? details.answered : "pending"}/${Number.isInteger(details?.total) ? details.total : "pending"}</p></div>`;
+    }).join(""));
+    const transcript = Array.isArray(me?.interview?.perQuestion) ? me.interview.perQuestion : [];
+    setHtml("report-interview-transcript", transcript.length ? `<table class="w-full text-left text-sm"><thead><tr><th class="score-cell">Question / Your answer</th><th class="score-cell">Accuracy / 10</th><th class="score-cell">Depth / 10</th><th class="score-cell">Clarity / 10</th></tr></thead><tbody>${transcript.map((entry) => `<tr class="border-t border-white/10"><td class="score-cell"><p class="text-primary-container">${escapeHtml(entry.question)}</p><p class="mt-3 whitespace-pre-wrap break-words text-on-surface-variant">${escapeHtml(entry.status === "skipped" ? "Skipped · 0 points" : entry.answer || "No answer provided.")}</p></td><td class="score-cell">${displayNumber(entry.accuracy)}</td><td class="score-cell">${displayNumber(entry.depth)}</td><td class="score-cell">${displayNumber(entry.clarity)}</td></tr>`).join("")}</tbody></table>` : '<p class="text-muted">No interview transcript available for this match.</p>');
+    setHtml("report-interview-feedback", [ ["Strengths", me?.interview?.feedback?.strengths], ["Tips", me?.interview?.feedback?.tips] ].map(([label, values]) => {
+      const entries = Array.isArray(values) ? values.filter((value) => typeof value === "string").slice(0, 3) : [];
+      return entries.length ? `<div><h4 class="text-primary-container">${label}</h4><ul class="list-disc pl-5 mt-3 space-y-2 text-on-surface-variant">${entries.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></div>` : "";
+    }).join(""));
+    const unavailable = pair.some((player) => player?.scores && ["timeComplexity", "spaceComplexity", "quality"].every((key) => player.scores[key] == null));
+    const warning = doc.getElementById("report-analysis-unavailable");
+    if (warning) warning.hidden = !unavailable;
+    setHtml("report-complexity", pair.map((player, index) => `<div class="rounded-lg bg-surface-container-lowest p-4"><h4 class="text-primary-container mb-2">${escapeHtml(names[index])}</h4><p>Time — ${index ? "Opponent" : "You"}: ${escapeHtml(player?.timeComplexity || "pending")} / Optimal: ${escapeHtml(data.problem?.optimalTime || "unavailable")}</p><p class="mt-2">Space — ${index ? "Opponent" : "You"}: ${escapeHtml(player?.spaceComplexity || "pending")} / Optimal: ${escapeHtml(data.problem?.optimalSpace || "unavailable")}</p></div>`).join(""));
+    const qualityHtml = pair.map((player, index) => {
+      const tiles = ["naming", "readability", "maintainability", "idioms"].filter((key) => hasScore(player?.quality?.[key]));
+      if (!tiles.length) return "";
+      return `<div><h4 class="text-primary-container mb-3">${escapeHtml(names[index])}</h4><div class="grid grid-cols-2 gap-3">${tiles.map((key) => `<div class="p-4 rounded-lg bg-surface-container-lowest"><span class="capitalize text-muted">${key}</span><p class="font-mono text-xl text-on-surface mt-2">${player.quality[key]}<span class="text-sm text-muted"> / 10</span></p></div>`).join("")}</div></div>`;
+    }).join("");
+    setHtml("report-quality-tiles", qualityHtml);
+    const qualitySection = doc.getElementById("report-quality");
+    if (qualitySection) qualitySection.hidden = !qualityHtml;
+    const tips = Array.isArray(me?.feedback) ? me.feedback.filter((tip) => typeof tip === "string").slice(0, 3) : [];
+    setHtml("report-feedback-tips", tips.map((tip) => `<li>${escapeHtml(tip)}</li>`).join(""));
+    const feedbackSection = doc.getElementById("report-feedback");
+    if (feedbackSection) feedbackSection.hidden = !tips.length;
+    const auto = doc.getElementById("report-auto-draft");
+    if (auto) auto.hidden = me?.resultSource !== "auto_draft";
+    const tests = Array.isArray(me?.myTests) ? me.myTests : [];
+    const failures = tests.filter((test) => !test.passed);
+    setHtml("report-mistakes", failures.length ? failures.map((test) => {
+      const sample = Object.prototype.hasOwnProperty.call(test, "input") && Object.prototype.hasOwnProperty.call(test, "expected");
+      const details = sample ? [ ["Input", test.input], ["Expected", test.expected], ["Actual", test.actual] ].map(([label, value]) => `<div class="mt-3"><p class="text-xs text-muted">${label}</p><pre class="p-3 mt-1 bg-surface-container rounded text-xs whitespace-pre-wrap break-words">${escapeHtml(value)}</pre></div>`).join("") : "";
+      return `<article class="rounded-lg bg-surface-container-lowest p-4"><h4 class="text-primary-container">${sample ? "Sample" : "Hidden"} test ${escapeHtml(Number.isInteger(test.index) ? test.index + 1 : "")} · Failed</h4>${details}${test.error ? `<p class="mt-3 text-sm text-error whitespace-pre-wrap break-words">${escapeHtml(test.error)}</p>` : ""}</article>`;
+    }).join("") : `<p class="text-muted">${tests.length ? "All recorded tests passed." : "No per-test details available."}</p>`);
+    let savedCode;
+    try { savedCode = JSON.parse(sessionStorage.getItem(`battle-code:${data.battleId}:${me?.userId}`)); } catch {}
+    const finalCode = typeof data.myCode?.code === "string" ? data.myCode.code : typeof me?.finalCode === "string" ? me.finalCode : savedCode?.code;
+    const codeElement = doc.getElementById("report-final-code");
+    if (codeElement) codeElement.textContent = typeof finalCode === "string" ? finalCode || "No code saved." : "Final code unavailable in this browser.";
+    const language = doc.getElementById("report-code-language");
+    if (language) language.textContent = data.myCode?.language || me?.language || savedCode?.language || "";
+    renderRadar(doc, pair);
+  }
+
+  function renderRadar(doc, players) {
+    const axes = scoreComponents.slice(0, 6);
+    const point = (index, value, radius = 95) => {
+      const angle = index * Math.PI / 3 - Math.PI / 2;
+      return [170 + Math.cos(angle) * radius * value / 100, 165 + Math.sin(angle) * radius * value / 100];
+    };
+    const coordinates = (index, value, radius) => point(index, value, radius).join(",");
+    const grid = [25, 50, 75, 100].map((value) => `<polygon points="${axes.map((_, index) => coordinates(index, value)).join(" ")}" fill="none" stroke="#333535"/>`).join("");
+    const labels = axes.map(([key, label], index) => {
+      const [x, y] = point(index, 100, 135);
+      const pending = players.some((player) => !hasScore(player?.scores?.[key]));
+      return `<line x1="170" y1="165" x2="${point(index, 100)[0]}" y2="${point(index, 100)[1]}" stroke="#333535"/><text x="${x}" y="${y}" fill="#CEC6AE" text-anchor="middle" font-size="10">${label}${pending ? '<tspan x="'+x+'" dy="13" fill="#9A9A9A">pending</tspan>' : ""}</text>`;
+    }).join("");
+    const series = players.map((player, side) => {
+      const color = side ? "#9A9A9A" : "#FDDF49";
+      const known = axes.map(([key]) => hasScore(player?.scores?.[key]));
+      const values = axes.map(([key]) => player?.scores?.[key]);
+      const polygon = known.every(Boolean) ? `<polygon points="${values.map((value, index) => coordinates(index, value)).join(" ")}" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="2"/>` : "";
+      return polygon + axes.map(([key, label], index) => {
+        if (!known[index]) return "";
+        const [x, y] = point(index, values[index]);
+        const next = (index + 1) % axes.length;
+        const segment = !polygon && known[next] ? `<line x1="${x}" y1="${y}" x2="${point(next, values[next])[0]}" y2="${point(next, values[next])[1]}" stroke="${color}" stroke-width="2"/>` : "";
+        return `${segment}<circle cx="${x}" cy="${y}" r="3" fill="${color}"><title>${side ? "Opponent" : "You"}: ${label} ${values[index].toFixed(1)}</title></circle>`;
+      }).join("");
+    }).join("");
+    const chart = doc.getElementById("report-score-radar");
+    if (chart) chart.innerHTML = `<svg viewBox="0 0 340 330" role="img" aria-label="Six-axis score comparison: correctness, speed, runtime, time complexity, space complexity and code quality" class="w-full">${grid}${labels}${series}</svg><p class="text-xs text-muted">Pending components have no plotted point.</p>`;
   }
 
   function renderTimeline(doc, timeline, myId, totalTests) {
@@ -289,7 +396,11 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
     const allAts = timeline.map((e) => Number(e.at)).filter(Boolean);
     const minAt = allAts.length ? Math.min(...allAts) : 0;
     const maxAt = allAts.length ? Math.max(...allAts) : 1;
-    const duration = Math.max(1000, maxAt - minAt);
+    const duration = Math.max(0, maxAt - minAt);
+    const chart = doc.getElementById("report-timeline-container");
+    if (chart) chart.hidden = !timeline.length;
+    const summary = doc.getElementById("report-timeline-outcome");
+    if (summary) summary.textContent = timeline.length ? `${timeline.length} recorded submissions` : "No submission timeline available";
 
     const tendEl = doc.getElementById("report-axis-tend");
     if (tendEl) tendEl.textContent = formatMs(duration);
@@ -298,7 +409,7 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
     const maxAxisEl = doc.getElementById("report-axis-max");
     if (maxAxisEl) maxAxisEl.textContent = `${totalTests} T`;
 
-    const getX = (at) => 40 + Math.min(1, Math.max(0, (at - minAt) / duration)) * (680 - 40);
+    const getX = (at) => 40 + Math.min(1, Math.max(0, (at - minAt) / (duration || 1))) * (680 - 40);
     const getY = (passed) => 210 - Math.min(1, Math.max(0, passed / (totalTests || 1))) * (210 - 30);
 
     if (myEvents.length > 0) {
@@ -404,15 +515,19 @@ export default function PostMortemReport({ onBack, onReplay, onQueueNext }) {
     if (doc && battleData) {
       populateDoc(doc, battleData);
     }
-  }, [battleData]);
+  }, [battleData, user]);
 
   return (
+    <>
+    {!battleData && <p role="status" className="p-8 text-center text-[#FDDF49]">{loadError || "Loading match report…"}</p>}
     <iframe
       ref={frameRef}
+      style={{ visibility: battleData ? "visible" : "hidden" }}
       src="/match-report.html"
       title="Match post-mortem and code quality report"
       onLoad={connectReport}
       className="block h-[calc(100dvh-64px)] w-full border-0 bg-[#121414]"
     />
+    </>
   );
 }

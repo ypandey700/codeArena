@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import api from "../services/api";
 import { getSocket } from "../services/socket";
@@ -31,10 +31,35 @@ export function BattleProvider({ children }) {
   const [battleResult, setBattleResult] = useState(null);
   const [duelState, setDuelState] = useState("closed");
   const [timeOffset, setTimeOffset] = useState(0);
+  const [interview, setInterview] = useState(null);
+  const interviewRef = useRef(null);
+  const interviewVersionRef = useRef(0);
+  const mergeInterview = useCallback((changes) => {
+    const next = { ...interviewRef.current, ...changes };
+    interviewRef.current = next;
+    setInterview(next);
+    return next;
+  }, []);
+  const mergeHistory = (current = [], incoming = []) => [...new Map([...current, ...incoming].map((entry) => [entry.index, entry])).values()].sort((a, b) => a.index - b.index);
 
   const queueTimerRef = useRef(null);
   const activeBattleRef = useRef(null);
   const pendingMatchRef = useRef(null);
+  const draftQueueRef = useRef(Promise.resolve());
+  const lastDraftAtRef = useRef(0);
+  const pendingSubmissionRef = useRef(null);
+  const completedBattleRef = useRef(null);
+  const updateBattle = (changes) => {
+    if (!activeBattleRef.current) return;
+    const next = { ...activeBattleRef.current, ...changes };
+    activeBattleRef.current = next;
+    setActiveBattle(next);
+  };
+  const rememberCode = (battleId, language, code) => {
+    try {
+      sessionStorage.setItem(`battle-code:${battleId}:${user?._id}`, JSON.stringify({ language, code }));
+    } catch {}
+  };
 
   useEffect(() => {
     activeBattleRef.current = activeBattle;
@@ -44,27 +69,87 @@ export function BattleProvider({ children }) {
     pendingMatchRef.current = pendingMatch;
   }, [pendingMatch]);
 
+  const joinInterview = useCallback(async () => {
+    const battle = activeBattleRef.current;
+    const socket = getSocket();
+    if (!battle?.battleId || !socket?.connected) throw new Error("Reconnect to resume your interview");
+    const version = interviewVersionRef.current;
+    const ack = await new Promise((resolve, reject) => {
+      socket.timeout(10000).emit("interview_join", { battleId: battle.battleId }, (error, response) => error ? reject(new Error("Could not resume interview. Try again.")) : resolve(response));
+    });
+    if (!ack?.success) throw new Error(ack?.message || "Could not resume interview");
+    if (activeBattleRef.current?.battleId !== battle.battleId) return ack;
+    const current = interviewRef.current;
+    const terminal = ["done", "skipped", "failed"].includes(ack.status);
+    const stale = version !== interviewVersionRef.current;
+    mergeInterview({
+      ...(stale ? {} : { status: ack.status, question: terminal ? null : ack.question, thinking: !terminal && !ack.question, interviewDeadlineAt: ack.interviewDeadlineAt, answeredCount: ack.answeredCount, total: ack.total }),
+      battleId: battle.battleId,
+      entered: true,
+      finalCode: ack.finalCode,
+      history: mergeHistory(current?.history, ack.history),
+    });
+    if (ack.serverNow) setTimeOffset(ack.serverNow - Date.now());
+    if (terminal && !stale) {
+      const next = { ...activeBattleRef.current, myPhase: "done", ownFinished: true };
+      activeBattleRef.current = next;
+      setActiveBattle(next);
+    }
+    return ack;
+  }, [mergeInterview]);
+
+  const answerInterview = useCallback(async ({ questionIndex, text, inputMode, skip = false }) => {
+    const battle = activeBattleRef.current;
+    const current = interviewRef.current;
+    const socket = getSocket();
+    if (!battle || battle.status !== "active" || !socket?.connected) throw new Error("Reconnect before sending your answer");
+    if (typeof text !== "string" || text.length > 2000) throw new Error("Answers can contain at most 2000 characters");
+    const question = current?.question;
+    const ack = await new Promise((resolve, reject) => {
+      socket.timeout(15000).emit("interview_answer", { battleId: battle.battleId, questionIndex, text, inputMode, skip }, (error, response) => error ? reject(new Error("Answer acknowledgment timed out. Reconnect or retry.")) : resolve(response));
+    });
+    if (!ack?.success) throw new Error(ack?.message || "Answer was not accepted");
+    if (activeBattleRef.current?.battleId === battle.battleId) {
+      const latest = interviewRef.current;
+      interviewVersionRef.current++;
+      const entry = question?.index === questionIndex && !/duplicate/i.test(ack.message || "") ? [{ index: questionIndex, text: question.text, answer: skip ? "" : text, status: skip ? "skipped" : "answered" }] : [];
+      mergeInterview({ history: mergeHistory(latest?.history, entry), ...(latest?.question?.index === questionIndex ? { question: null, thinking: true } : {}) });
+    }
+    if (/duplicate/i.test(ack.message || "")) joinInterview().catch(() => {});
+    return ack;
+  }, [mergeInterview, joinInterview]);
+
   const applyBattleState = (data) => {
-    if (!data) return;
+    if (!data || data.battleId === completedBattleRef.current) return;
     if (data.serverNow) {
       setTimeOffset(data.serverNow - Date.now());
     }
     if (data.status === "pending") {
       setPendingMatch(data);
       setDuelState("found");
-    } else if (data.status === "active") {
-      setActiveBattle(data);
+    } else if (data.status === "active" || data.status === "finalizing") {
+      const current = activeBattleRef.current;
+      const sameBattle = current?.battleId === data.battleId;
+      const phaseOrder = { coding: 0, interview: 1, done: 2 };
+      const next = {
+        ...data,
+        myPhase: sameBattle && phaseOrder[current.myPhase] > phaseOrder[data.myPhase] ? current.myPhase : data.myPhase || "coding",
+        opponentPhase: sameBattle && phaseOrder[current.opponentPhase] > phaseOrder[data.opponentPhase] ? current.opponentPhase : data.opponentPhase || "coding",
+        opponentInterview: sameBattle ? current.opponentInterview : null,
+        ownFinished: !!data.ownFinished || (sameBattle && !!current.ownFinished),
+        opponentFinished: !!data.opponentFinished || (sameBattle && !!current.opponentFinished),
+        status: sameBattle && current.status === "finalizing" ? "finalizing" : data.status,
+        endsAt: sameBattle && current.endsAt && data.endsAt ? Math.min(toTimestamp(current.endsAt), toTimestamp(data.endsAt)) : data.endsAt,
+      };
+      activeBattleRef.current = next;
+      setActiveBattle(next);
       if (data.lastChatMessages) setChatMessages(data.lastChatMessages);
       if (data.opponentProgress) setOpponentProgress(data.opponentProgress);
       setDuelState("battle");
-    } else if (data.status === "finished") {
-      setBattleResult(data);
-      if (data.battleId) {
-        localStorage.setItem("lastBattleId", data.battleId);
+      if (next.myPhase !== "coding" || next.status === "finalizing") {
+        mergeInterview({ battleId: next.battleId, entered: true });
+        if (getSocket()?.connected) joinInterview().catch(() => {});
       }
-      refreshUser?.();
-      setActiveBattle(null);
-      setDuelState("report_full");
     }
   };
 
@@ -87,8 +172,12 @@ export function BattleProvider({ children }) {
       getSocket()?.emit("queue_leave");
       setInQueue(false);
       setPendingMatch(null);
+      activeBattleRef.current = null;
+      pendingSubmissionRef.current = null;
       setActiveBattle(null);
       setBattleResult(null);
+      interviewRef.current = null;
+      setInterview(null);
       setDuelState("closed");
       return;
     }
@@ -124,7 +213,9 @@ export function BattleProvider({ children }) {
   useEffect(() => {
     if (!user) return;
 
-    let socketInterval = setInterval(() => {
+    let cleanupSocket;
+    let socketInterval;
+    const attachSocket = () => {
       const socket = getSocket();
       if (!socket) return;
       clearInterval(socketInterval);
@@ -160,10 +251,18 @@ export function BattleProvider({ children }) {
       };
 
       const onBattleStart = (data) => {
+        completedBattleRef.current = null;
         if (data.serverNow) setTimeOffset(data.serverNow - Date.now());
         setPendingMatch(null);
         setHasAccepted(false);
-        setActiveBattle(data);
+        interviewRef.current = null;
+        setInterview(null);
+        interviewVersionRef.current++;
+        activeBattleRef.current = { ...data, status: "active", myPhase: "coding", opponentPhase: "coding", ownFinished: false, opponentFinished: false };
+        setActiveBattle(activeBattleRef.current);
+        setSubmissionResult(null);
+        setBattleResult(null);
+        setOpponentDisconnected(null);
         setChatMessages([]);
         setOpponentProgress(data.opponentProgress || { passedCount: 0, totalCount: data.problem?.sampleTestCases?.length || 0 });
         setDuelState("battle");
@@ -193,7 +292,60 @@ export function BattleProvider({ children }) {
         setOpponentDisconnected(null);
       };
 
+      const onYouFinished = (data) => {
+        const submitted = pendingSubmissionRef.current;
+        if (submitted?.battleId === activeBattleRef.current?.battleId) {
+          rememberCode(submitted.battleId, submitted.language, submitted.code);
+          pendingSubmissionRef.current = null;
+        }
+        if (data.serverNow) setTimeOffset(data.serverNow - Date.now());
+        updateBattle({ ownFinished: true, endsAt: data.endsAt, ownProgress: { bestPassed: data.passedCount, totalTests: data.totalCount } });
+      };
+      const onOpponentFinished = (data) => {
+        if (data.serverNow) setTimeOffset(data.serverNow - Date.now());
+        updateBattle({ opponentFinished: true, endsAt: data.endsAt, opponentProgress: { bestPassed: data.passedCount, totalTests: data.totalCount } });
+        setOpponentProgress(data);
+      };
+      const onInterviewThinking = () => {
+        if (!activeBattleRef.current) return;
+        interviewVersionRef.current++;
+        mergeInterview({ battleId: activeBattleRef.current.battleId, thinking: true, question: null });
+        updateBattle({ ownFinished: true, myPhase: "interview" });
+      };
+      const onInterviewStarted = (data) => {
+        if (data.battleId === completedBattleRef.current || activeBattleRef.current && data.battleId !== activeBattleRef.current.battleId) return;
+        interviewVersionRef.current++;
+        if (data.serverNow) setTimeOffset(data.serverNow - Date.now());
+        mergeInterview({ battleId: data.battleId, entered: true, status: "active", thinking: false, question: data.question, total: data.total, interviewDeadlineAt: data.interviewDeadlineAt });
+        updateBattle({ ownFinished: true, myPhase: "interview" });
+        joinInterview().catch(() => {});
+      };
+      const onInterviewQuestion = (data) => {
+        if (!activeBattleRef.current) return;
+        interviewVersionRef.current++;
+        if (data.serverNow) setTimeOffset(data.serverNow - Date.now());
+        mergeInterview({ entered: true, status: "active", thinking: false, question: data });
+        joinInterview().catch(() => {});
+      };
+      const onInterviewComplete = () => {
+        if (!activeBattleRef.current) return;
+        interviewVersionRef.current++;
+        mergeInterview({ entered: true, status: "done", question: null, thinking: false });
+        updateBattle({ ownFinished: true, myPhase: "done" });
+        joinInterview().catch(() => {});
+      };
+      const onOpponentPhase = (data) => {
+        if (!activeBattleRef.current) return;
+        updateBattle({ opponentPhase: data.phase, opponentInterview: { questionIndex: data.questionIndex, total: data.total } });
+      };
+      const onFinalizing = () => {
+        interviewVersionRef.current++;
+        updateBattle({ status: "finalizing" });
+        mergeInterview({ entered: true, question: null, thinking: false });
+      };
       const onBattleEnd = (data) => {
+        completedBattleRef.current = data?.battleId;
+        activeBattleRef.current = null;
         setBattleResult(data);
         if (data?.battleId) {
           localStorage.setItem("lastBattleId", data.battleId);
@@ -214,9 +366,17 @@ export function BattleProvider({ children }) {
       socket.on("submission_result", onSubmissionResult);
       socket.on("opponent_disconnected", onOpponentDisconnected);
       socket.on("opponent_reconnected", onOpponentReconnected);
+      socket.on("you_finished", onYouFinished);
+      socket.on("opponent_finished", onOpponentFinished);
+      socket.on("battle_finalizing", onFinalizing);
+      socket.on("interview_started", onInterviewStarted);
+      socket.on("interview_thinking", onInterviewThinking);
+      socket.on("interview_question", onInterviewQuestion);
+      socket.on("interview_complete", onInterviewComplete);
+      socket.on("opponent_phase", onOpponentPhase);
       socket.on("battle_end", onBattleEnd);
 
-      return () => {
+      cleanupSocket = () => {
         socket.off("connect", onConnect);
         socket.off("queue_status", onQueueStatus);
         socket.off("match_found", onMatchFound);
@@ -228,12 +388,23 @@ export function BattleProvider({ children }) {
         socket.off("submission_result", onSubmissionResult);
         socket.off("opponent_disconnected", onOpponentDisconnected);
         socket.off("opponent_reconnected", onOpponentReconnected);
+        socket.off("you_finished", onYouFinished);
+        socket.off("opponent_finished", onOpponentFinished);
+        socket.off("battle_finalizing", onFinalizing);
+        socket.off("interview_started", onInterviewStarted);
+        socket.off("interview_thinking", onInterviewThinking);
+        socket.off("interview_question", onInterviewQuestion);
+        socket.off("interview_complete", onInterviewComplete);
+        socket.off("opponent_phase", onOpponentPhase);
         socket.off("battle_end", onBattleEnd);
       };
-    }, 200);
+    };
+    attachSocket();
+    if (!cleanupSocket) socketInterval = setInterval(attachSocket, 200);
 
     return () => {
       clearInterval(socketInterval);
+      cleanupSocket?.();
     };
   }, [user]);
 
@@ -324,10 +495,56 @@ export function BattleProvider({ children }) {
     });
   };
 
+  const saveCodeDraft = ({ language, code }) => {
+    const battleId = activeBattleRef.current?.battleId;
+    const send = async () => {
+      const wait = Math.max(0, 2100 - (Date.now() - lastDraftAtRef.current));
+      if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+      const battle = activeBattleRef.current;
+      if (!battleId || battle?.battleId !== battleId || battle.ownFinished || battle.status !== "active") throw new Error("Your solution is locked");
+      if (typeof code !== "string" || code.length > 20000) throw new Error("Code must be at most 20000 characters");
+      const socket = getSocket();
+      if (!socket?.connected) throw new Error("Reconnect before saving your code");
+      lastDraftAtRef.current = Date.now();
+      const ack = await new Promise((resolve, reject) => {
+        socket.timeout(10000).emit("code_draft", { battleId, language, code }, (error, response) => error ? reject(new Error("Draft save timed out")) : resolve(response));
+      });
+      if (!ack?.success) throw new Error(ack?.message || "Could not save draft");
+      rememberCode(battleId, language, code);
+      return ack;
+    };
+    const pending = draftQueueRef.current.catch(() => {}).then(send);
+    draftQueueRef.current = pending;
+    return pending;
+  };
+
+  const finishBattle = async () => {
+    await draftQueueRef.current;
+    const battle = activeBattleRef.current;
+    if (!battle || battle.ownFinished || battle.status !== "active") throw new Error("Your solution is locked");
+    const socket = getSocket();
+    if (!socket?.connected) throw new Error("Reconnect before finishing");
+    const ack = await new Promise((resolve, reject) => {
+      socket.timeout(120000).emit("battle_finish", { battleId: battle.battleId }, (error, response) => error ? reject(new Error("Finish timed out; reconnect to restore battle state")) : resolve(response));
+    });
+    if (!ack?.success) throw new Error(ack?.message || "Could not finish");
+    return ack;
+  };
+
   const submitBattleCode = async ({ language, code }) => {
-    if (!activeBattle) return;
-    const res = await api.post(`/battles/${activeBattle.battleId}/submit`, { language, code });
-    return res.data;
+    const battle = activeBattleRef.current;
+    if (!battle || battle.ownFinished || battle.status !== "active") throw new Error("Your solution is locked");
+    await draftQueueRef.current.catch(() => {});
+    const current = activeBattleRef.current;
+    if (current?.battleId !== battle.battleId || current.ownFinished || current.status !== "active") throw new Error("Your solution is locked");
+    pendingSubmissionRef.current = { battleId: battle.battleId, language, code };
+    try {
+      const res = await api.post(`/battles/${battle.battleId}/submit`, { language, code }, { timeout: 120000 });
+      rememberCode(battle.battleId, language, code);
+      return res.data;
+    } finally {
+      pendingSubmissionRef.current = null;
+    }
   };
 
   return (
@@ -346,6 +563,9 @@ export function BattleProvider({ children }) {
         battleResult,
         duelState,
         timeOffset,
+        interview,
+        joinInterview,
+        answerInterview,
         setDuelState,
         joinQueue,
         leaveQueue,
@@ -354,6 +574,8 @@ export function BattleProvider({ children }) {
         forfeitBattle,
         sendChatMessage,
         submitBattleCode,
+        saveCodeDraft,
+        finishBattle,
       }}
     >
       {children}

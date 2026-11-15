@@ -1,7 +1,9 @@
+import { useAuth } from "../context/AuthContext";
 import { useRef } from "react";
 import { useBattle } from "../context/BattleContext";
 
 export default function BattleModes({ onQuickDuel }) {
+  const { user } = useAuth();
   const frameRef = useRef(null);
   const { joinQueue } = useBattle();
 
@@ -13,6 +15,7 @@ export default function BattleModes({ onQuickDuel }) {
   function connectModes() {
     const doc = frameRef.current?.contentDocument;
     if (!doc) return;
+    doc.querySelectorAll("[data-user-rating]").forEach((el) => { el.textContent = user?.rating ?? 1200; });
 
     doc.querySelectorAll('[data-mode-card="1"], [data-mode-card="2"]').forEach((card) => {
       card.classList.add("opacity-60");

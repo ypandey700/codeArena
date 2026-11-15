@@ -17,6 +17,8 @@ const {
   saveDraft,
 } = require('../services/battleService');
 
+const interviewService = require('../services/interviewService');
+
 let io;
 
 function initSocket(server) {
@@ -143,6 +145,24 @@ function initSocket(server) {
     socket.on('battle_finish', async (data, ack) => {
       try {
         const result = await finishPlayer(data?.battleId, userId);
+        if (typeof ack === 'function') ack(result);
+      } catch (err) {
+        if (typeof ack === 'function') ack({ success: false, message: err.message });
+      }
+    });
+
+    socket.on('interview_join', async (data, ack) => {
+      try {
+        const result = await interviewService.join(data?.battleId, userId);
+        if (typeof ack === 'function') ack(result);
+      } catch (err) {
+        if (typeof ack === 'function') ack({ success: false, message: err.message });
+      }
+    });
+
+    socket.on('interview_answer', async (data, ack) => {
+      try {
+        const result = await interviewService.answer(data?.battleId, userId, data?.questionIndex, data?.text, data?.inputMode, data?.skip);
         if (typeof ack === 'function') ack(result);
       } catch (err) {
         if (typeof ack === 'function') ack({ success: false, message: err.message });

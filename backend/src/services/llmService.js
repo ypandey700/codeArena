@@ -1,5 +1,16 @@
-const callLLM = async ({ system, user, maxTokens = 700 }) => {
+const callLLM = async ({ system, user, maxTokens = 700, temperature = 0, purpose = 'analysis', timeoutMs }) => {
   if (process.env.LLM_MOCK === 'true') {
+    if (purpose === 'interview_question') {
+      const context = JSON.parse(user);
+      const { codeQuestion } = require('./interviewQuestions');
+      const entry = codeQuestion(context.code, context.history.length, context.history);
+      return JSON.stringify({ ...entry, evidence: context.code.split('\n').find((line) => line.trim().length >= 3)?.trim() || context.code });
+    }
+    if (purpose === 'interview_score') {
+      const context = JSON.parse(user);
+      const answered = context.transcript.some((q) => q.status === 'answered' && q.answer.trim());
+      return JSON.stringify({ perQuestion: context.transcript.map((q) => ({ accuracy: q.status === 'answered' && q.answer.trim() ? 8 : 0, depth: q.status === 'answered' && q.answer.trim() ? 8 : 0, clarity: q.status === 'answered' && q.answer.trim() ? 8 : 0 })), understanding: answered ? 8 : 0, strengths: answered ? ['Explains the approach clearly.'] : [], tips: answered ? ['Discuss edge cases explicitly.'] : ['Explain your reasoning in your answers.'] });
+    }
     const code = user.split('<code>')[1]?.split('</code>')[0] || '';
     const nested = (code.match(/\bfor\s*\(/g) || []).length >= 2 && !/new Map/.test(code);
     const messy = /\bvar\b/.test(code);
@@ -10,13 +21,13 @@ const callLLM = async ({ system, user, maxTokens = 700 }) => {
   const anthropic = process.env.LLM_PROVIDER === 'anthropic';
   const base = (process.env.LLM_BASE_URL || (anthropic ? 'https://api.anthropic.com/v1' : 'https://api.openai.com/v1')).replace(/\/$/, '');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Number(process.env.LLM_TIMEOUT_MS) || 20000);
+  const timer = setTimeout(() => controller.abort(), Math.max(1, Math.min(timeoutMs || Infinity, Number(process.env.LLM_TIMEOUT_MS) || 20000)));
   try {
     const response = await fetch(`${base}/${anthropic ? 'messages' : 'chat/completions'}`, {
       method: 'POST',
       signal: controller.signal,
       headers: { 'Content-Type': 'application/json', ...(anthropic ? { 'x-api-key': process.env.LLM_API_KEY, 'anthropic-version': '2023-06-01' } : { Authorization: `Bearer ${process.env.LLM_API_KEY}` }) },
-      body: JSON.stringify(anthropic ? { model: process.env.LLM_MODEL || 'claude-sonnet-4-5', max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] } : { model: process.env.LLM_MODEL || 'gpt-4o-mini', max_completion_tokens: maxTokens, ...(/^o[134]|^gpt-5/.test(process.env.LLM_MODEL || '') ? {} : { temperature: 0 }), messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+      body: JSON.stringify(anthropic ? { model: process.env.LLM_MODEL || 'claude-sonnet-4-5', max_tokens: maxTokens, temperature, system, messages: [{ role: 'user', content: user }] } : { model: process.env.LLM_MODEL || 'gpt-4o-mini', max_completion_tokens: maxTokens, ...(/^o[134]|^gpt-5/.test(process.env.LLM_MODEL || '') ? {} : { temperature }), messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
     });
     if (!response.ok) return null;
     const body = await response.json();

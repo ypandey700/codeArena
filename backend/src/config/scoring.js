@@ -6,6 +6,7 @@ const complexityScore = (detected, optimal) => Math.max(0, 100 - 35 * Math.max(0
 const computeResult = (battle) => {
   const players = battle.players;
   const available = players.every((p) => p.analysis);
+  const interviewAvailable = players.every((p) => p.interview && ['done', 'skipped'].includes(p.interview.status) && Number.isFinite(p.interview.score));
   const duration = battle.battleDurationMs || new Date(battle.endsAt) - new Date(battle.startedAt);
   const scores = players.map((p) => {
     const solved = p.totalTests > 0 && p.bestPassed === p.totalTests && !!p.solvedAt;
@@ -17,7 +18,7 @@ const computeResult = (battle) => {
       timeComplexity: available && COMPLEXITIES.includes(battle.problem.optimalTime) ? (p.bestPassed ? complexityScore(p.analysis.timeComplexity, battle.problem.optimalTime) : 0) : null,
       spaceComplexity: available && COMPLEXITIES.includes(battle.problem.optimalSpace) ? (p.bestPassed ? complexityScore(p.analysis.spaceComplexity, battle.problem.optimalSpace) : 0) : null,
       quality: available ? (p.bestPassed ? Math.round(Object.values(p.analysis.quality).reduce((a, b) => a + b, 0) / 4 * 10) : 0) : null,
-      interview: null,
+      interview: interviewAvailable ? p.interview.score : null,
     };
     const keys = Object.keys(WEIGHTS).filter((key) => s[key] !== null);
     s.total = keys.reduce((sum, key) => sum + s[key] * WEIGHTS[key], 0) / keys.reduce((sum, key) => sum + WEIGHTS[key], 0);

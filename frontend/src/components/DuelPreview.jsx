@@ -17,8 +17,7 @@ export default function DuelPreview() {
 
   return (
     <section id="live-preview" className="duel-preview-theme reference-duel mx-auto max-w-[1280px] scroll-mt-20 px-5 pb-14 sm:px-8 lg:px-10">
-      <div className="mb-6"><p className="mb-2 text-xs font-medium text-[#8fa9d5]">Live combat node / cluster-us-east-04</p><h2 className="text-2xl font-semibold tracking-tight text-[#e4eaf5] sm:text-3xl">Ranked 1v1 Battleground: Immortal Tier Match</h2><p className="mt-3 text-sm leading-6 text-[#a7b3ca]">Read the challenge, write your code, and see how the answer comes together.</p></div>
-      <div className="mb-3 grid grid-cols-3 items-center gap-2 rounded-lg border border-[#263044] bg-[#0d111a] px-4 py-3 text-xs"><div><b className="text-[#fddf49]">void_runner</b><span className="ml-2 text-[9px] text-[#90a0b8]">YOU / 2,340 RR</span></div><div className="text-center font-mono text-[#edf1f7]">04:19 <span className="text-[9px] text-[#90a0b8]">LEFT</span></div><div className="text-right"><b className="text-[#50c6db]">KageNinja_99</b><span className="ml-2 text-[9px] text-[#90a0b8]">2,385 RR</span></div></div>
+      <div className="mb-6"><p className="mb-2 text-xs font-medium text-[#8fa9d5]">Interactive example / not a live match</p><h2 className="text-2xl font-semibold tracking-tight text-[#e4eaf5] sm:text-3xl">Explore a coding challenge</h2><p className="mt-3 text-sm leading-6 text-[#a7b3ca]">Read the challenge, write your code, and see how the answer comes together.</p></div>
       <div className="grid overflow-hidden rounded-xl border border-[#354057] bg-[#1b2230] lg:grid-cols-[.85fr_1.15fr]">
         <div className="flex flex-col border-b border-[#354057] p-6 sm:p-8 lg:border-b-0 lg:border-r">
           <div className="mb-5 flex items-center gap-3"><span className="rounded-md bg-[#234036] px-2.5 py-1 text-xs font-medium text-[#9bd3b9]">Easy</span><span className="text-xs text-[#8999b4]">Arrays / Hash map</span></div>

@@ -76,8 +76,14 @@ export function QueueOverlay({ onMinimize, onClose }) {
     const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       if (walker.currentNode.parentElement.closest("script, style")) continue;
-      walker.currentNode.textContent = walker.currentNode.textContent.replaceAll("v0id_runner", user?.username || "You");
+      walker.currentNode.textContent = walker.currentNode.textContent.replaceAll("Player", user?.username || "You");
     }
+    const wins = user?.stats?.wins || 0;
+    const losses = user?.stats?.losses || 0;
+    doc.querySelectorAll('[data-user-rating]').forEach((el) => { el.textContent = user?.rating ?? 1200; });
+    doc.querySelectorAll('[data-user-winrate]').forEach((el) => { el.textContent = `${wins + losses ? Math.round(wins / (wins + losses) * 100) : 0}%`; });
+    doc.querySelectorAll('[data-user-record]').forEach((el) => { el.textContent = `${wins}W / ${losses}L`; });
+    doc.querySelectorAll('[data-user-streak]').forEach((el) => { el.textContent = user?.stats?.streak || 0; });
     const cancelBtn = doc.getElementById("cancel-queue-action");
     if (cancelBtn) {
       cancelBtn.addEventListener("click", (e) => {
@@ -130,7 +136,7 @@ function PlayerCard({ user, rival = false, opponent = null }) {
   const oppRating = Number(opponent?.rating ?? 1200);
 
   const displayRating = rival ? oppRating.toLocaleString() : userRating.toLocaleString();
-  const tier = rival ? (opponent?.tier || "GOLD") : (user?.tier || "GOLD");
+  const tier = rival ? (opponent?.tier || "Unranked") : (user?.tier || "Unranked");
   const winrate = rival ? (opponent?.winRate || opponent?.winrate || "--") : (wins + losses ? `${((wins / (wins + losses)) * 100).toFixed(1)}%` : "--");
   const streak = rival ? (opponent?.streak ?? "--") : (user?.stats?.streak ?? "--");
   const avatar = rival ? opponent?.avatar : user?.avatar;

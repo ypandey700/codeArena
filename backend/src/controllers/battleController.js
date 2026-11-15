@@ -45,7 +45,7 @@ const getActiveBattle = async (req, res) => {
 
 const getBattleById = async (req, res) => {
   try {
-    const battle = await Battle.findById(req.params.id).select('+players.myTests').populate('problem players.user');
+    const battle = await Battle.findById(req.params.id).select('+players.myTests +players.finalCode').populate('problem players.user');
     if (!battle) {
       return res.status(404).json({ message: 'Battle not found' });
     }
@@ -55,7 +55,7 @@ const getBattleById = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const formatted = formatBattleEndShape(battle, req.user._id);
+    const formatted = await formatBattleEndShape(battle, req.user._id);
 
     return res.json({
       success: true,
@@ -86,7 +86,7 @@ const getMyBattles = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        battles: battles.map((battle) => formatBattleEndShape(battle, req.user._id)),
+        battles: await Promise.all(battles.map((battle) => formatBattleEndShape(battle, req.user._id))),
         total,
         page,
         limit,

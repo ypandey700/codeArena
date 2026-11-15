@@ -6,6 +6,8 @@ const redis = require('../config/redis');
 const { runSubmission } = require('./codeRunnerService');
 const { analyzeSolution } = require('./analysisService');
 const { computeResult } = require('../config/scoring');
+const Interview = require('../models/Interview');
+const interviewService = require('./interviewService');
 const { getTier } = require('../utils/tier');
 
 const QUEUE_KEY = 'matchmaking:queue:ranked_1v1';
@@ -26,6 +28,8 @@ let queueStatusInterval = null;
 const battleTimers = {};
 const acceptTimers = {};
 const disconnectTimers = {};
+const hardTimers = {};
+const playerJobs = new Map();
 
 const getBattleDurationSeconds = () => parseInt(process.env.BATTLE_DURATION_SECONDS, 10) || 900;
 const getReconnectGraceSeconds = () => parseInt(process.env.RECONNECT_GRACE_SECONDS, 10) || 30;
@@ -50,6 +54,7 @@ const cleanProblem = (problem) => {
 
 const setIO = (io) => {
   ioInstance = io;
+  interviewService.configure(io, playerDone);
 };
 
 const formatBattleState = async (battle, userId) => {
@@ -70,6 +75,7 @@ const formatBattleState = async (battle, userId) => {
     const u = p && p.user && typeof p.user === 'object' && p.user.username ? p.user : null;
     return {
       userId: getUserId(p?.user),
+      phase: p.phase || 'coding',
       username: u ? u.username : '',
       avatar: u ? (u.avatar || '') : '',
       passedCount: p ? p.bestPassed : 0,
@@ -95,6 +101,8 @@ const formatBattleState = async (battle, userId) => {
       battleId: String(battle._id),
       status: battle.status,
       serverNow: Date.now(),
+      myPhase: me?.phase || 'coding',
+      opponentPhase: opp?.phase || 'coding',
       ownFinished: !!me?.finishedAt,
       opponentFinished: !!opp?.finishedAt,
       acceptDeadline: toTimeMs(battle.acceptDeadline),
@@ -125,6 +133,8 @@ const formatBattleState = async (battle, userId) => {
     battleId: String(battle._id),
     status: battle.status,
     serverNow: Date.now(),
+    myPhase: me?.phase || 'coding',
+    opponentPhase: opp?.phase || 'coding',
     ownFinished: !!me?.finishedAt,
     opponentFinished: !!opp?.finishedAt,
     startedAt: toTimeMs(battle.startedAt),
@@ -153,7 +163,9 @@ const formatBattleState = async (battle, userId) => {
   return base;
 };
 
-const formatBattleEndShape = (battle, userId) => {
+const formatBattleEndShape = async (battle, userId) => {
+  const interviews = await Interview.find({ battle: battle._id });
+  const me = battle.players.find((player) => getUserId(player.user) === String(userId));
   const startedTime = battle.startedAt ? toTimeMs(battle.startedAt) : null;
   const p0 = battle.players[0];
   const p1 = battle.players[1];
@@ -172,6 +184,14 @@ const formatBattleEndShape = (battle, userId) => {
     ratingAfter: player ? player.ratingAfter : null,
     ratingDelta: player ? player.ratingDelta : null,
     xpGained: player ? player.xpGained : 0,
+    phase: player?.phase || 'coding',
+    interview: (() => {
+      const interview = interviews.find((record) => getUserId(record.user) === getUserId(player.user));
+      if (!interview) return null;
+      const own = getUserId(player.user) === String(userId);
+      const { status, ...numbers } = interviewService.summary(interview);
+      return { ...numbers, score: player.scores ? player.scores.interview : numbers.score, ...(own ? { perQuestion: interview.questions.map((q) => ({ question: q.text, answer: q.answer, status: q.status, accuracy: q.accuracy, depth: q.depth, clarity: q.clarity })), feedback: interview.feedback } : {}) };
+    })(),
     scores: player?.scores || null,
     timeComplexity: player?.analysis?.timeComplexity || null,
     spaceComplexity: player?.analysis?.spaceComplexity || null,
@@ -184,6 +204,7 @@ const formatBattleEndShape = (battle, userId) => {
   return {
     battleId: String(battle._id),
     status: battle.status,
+    ...(me && me.finalCode !== undefined ? { myCode: { language: me.language || '', code: me.finalCode || '' } } : {}),
     winner: battle.winner ? String(battle.winner) : null,
     reason: battle.reason || null,
     problem: battle.problem && typeof battle.problem === 'object' ? {
@@ -511,11 +532,108 @@ const startBattle = async (battleId) => {
 const armBattleTimer = (battle) => {
   clearTimeout(battleTimers[battle._id]);
   battleTimers[battle._id] = setTimeout(() => {
-    finishBattle(battle._id, null, 'time').catch(() => {});
+    onBattleTimeUp(battle._id).catch(() => {});
   }, Math.max(0, new Date(battle.endsAt).getTime() - Date.now()));
 };
 
-const onBattleTimeUp = (battleId) => finishBattle(battleId, null, 'time');
+const bounded = async (promise, milliseconds) => {
+  let timer;
+  try { return await Promise.race([promise.catch(() => null), new Promise((resolve) => { timer = setTimeout(() => resolve(null), Math.max(1, milliseconds)); })]); }
+  finally { clearTimeout(timer); }
+};
+
+const playerDone = async (battleId, userId, interview) => {
+  const battle = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: { $in: ['interview', 'done'] } } } }, { $set: { 'players.$.phase': 'done', 'players.$.interview': interview } }, { new: true });
+  if (battle?.players.every((player) => player.phase === 'done' && player.codingProcessedAt)) await finishBattle(battleId);
+};
+
+const armHardCap = (battle) => {
+  if (!battle.players.every((player) => player.finishedAt)) return;
+  clearTimeout(hardTimers[battle._id]);
+  const laterEnd = Math.max(...battle.players.map((player) => new Date(player.finishedAt).getTime()));
+  const deadline = laterEnd + (interviewService.maxSeconds() + 30) * 1000;
+  hardTimers[battle._id] = setTimeout(() => closeAtHardCap(battle._id).catch(() => {}), Math.max(0, deadline - Date.now()));
+};
+
+const closeAtHardCap = async (battleId) => {
+  const battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode');
+  if (!battle || !battle.players.every((player) => player.finishedAt)) return;
+  for (const player of battle.players) {
+    await interviewService.ensureInterview(battleId, player);
+    if (!player.codingProcessedAt) await Battle.updateOne({ _id: battleId, status: 'active', players: { $elemMatch: { user: player.user, codingProcessedAt: null } } }, { $set: { 'players.$.codingProcessedAt': new Date(), 'players.$.analysisCompletedAt': new Date(), 'players.$.analysis': null, ...(!player.evaluationReady ? { 'players.$.bestPassed': 0, 'players.$.runtimeMs': 0, 'players.$.myTests': [], 'players.$.solvedAt': null } : {}) } });
+  }
+  await interviewService.forceClose(battleId);
+  await finishBattle(battleId);
+};
+
+const processPlayer = (battleId, userId) => {
+  const key = `${battleId}:${userId}`;
+  if (playerJobs.has(key)) return playerJobs.get(key);
+  const job = (async () => {
+    let battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode');
+    let player = battle?.players.find((p) => getUserId(p.user) === String(userId));
+    if (!player || player.phase === 'coding') return;
+    const interview = await interviewService.ensureInterview(battleId, player);
+    const update = async (values) => Battle.updateOne({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: { $in: ['interview', 'done'] }, codingProcessedAt: null } } }, { $set: values });
+    if (!player.codingProcessedAt) {
+      const problem = await Problem.findById(battle.problem).select('+hiddenTestCases');
+      if (!player.evaluationReady) {
+        const budget = new Date(interview.deadlineAt).getTime() + 20000 - Date.now();
+        const evaluated = await bounded(evaluateCode(problem, player.language, player.finalCode), budget) || await evaluateCode(problem, '', '');
+        const solved = evaluated.result.status === 'accepted';
+        await update({ 'players.$.bestPassed': evaluated.result.passedCount, 'players.$.totalTests': evaluated.result.totalCount, 'players.$.runtimeMs': evaluated.runtimeMs, 'players.$.myTests': evaluated.myTests, 'players.$.evaluationReady': true, 'players.$.solvedAt': solved ? player.finishedAt : null });
+      }
+      battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode');
+      player = battle?.players.find((p) => getUserId(p.user) === String(userId));
+      if (!player || player.codingProcessedAt) return;
+      const opponent = battle.players.find((p) => getUserId(p.user) !== String(userId));
+      const payload = { endsAt: battle.endsAt, serverNow: Date.now(), passedCount: player.bestPassed, totalCount: player.totalTests };
+      ioInstance?.to(`user:${userId}`).emit('you_finished', payload);
+      ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_finished', { ...payload, solveTimeMs: player.solvedAt ? new Date(player.solvedAt) - new Date(battle.startedAt) : null });
+      if (!player.analysisCompletedAt) {
+        const budget = Math.min((Number(process.env.LLM_TIMEOUT_MS) || 20000) + 5000, new Date(interview.deadlineAt).getTime() + 20000 - Date.now());
+        const analysis = await bounded(analyzeSolution({ problem, language: player.language, code: player.finalCode }), budget);
+        await update({ 'players.$.analysis': analysis, 'players.$.analysisCompletedAt': new Date() });
+      }
+      await update({ 'players.$.codingProcessedAt': new Date(), 'players.$.finishing': false });
+    }
+    await interviewService.start(interview._id);
+    await finishBattle(battleId);
+  })().finally(() => playerJobs.delete(key));
+  playerJobs.set(key, job);
+  return job;
+};
+
+const endCoding = async (battleId, userId, reason, evaluated = false) => {
+  const battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode');
+  const player = battle?.players.find((p) => getUserId(p.user) === String(userId));
+  if (!player || player.phase !== 'coding') return { success: false, message: 'Coding is locked' };
+  const raw = evaluated ? null : await redis.get(`draft:${battleId}:${userId}`);
+  const draft = raw ? JSON.parse(raw) : null;
+  const source = draft && draft.at > (toTimeMs(player.codeUpdatedAt) || 0) ? draft : { code: player.finalCode || '', language: player.language };
+  const finishedAt = reason === 'timeout' ? new Date(battle.endsAt) : new Date();
+  const updated = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: 'coding', ...(reason === 'locked' ? { finishing: { $ne: true } } : {}) } } }, { $set: { battleDurationMs: battle.battleDurationMs || new Date(battle.endsAt) - new Date(battle.startedAt), 'players.$.phase': 'interview', 'players.$.finishedAt': finishedAt, 'players.$.finishedBy': reason, 'players.$.finishing': false, 'players.$.finalCode': source.code, 'players.$.language': source.language, 'players.$.evaluationReady': evaluated, 'players.$.resultSource': source.code ? (evaluated ? 'submit' : 'auto_draft') : 'none' }, $min: { endsAt: new Date(Date.now() + (Number(process.env.AFTER_FIRST_FINISH_SECONDS) || 180) * 1000) } }, { new: true }).select('+players.finalCode');
+  if (!updated) return { success: false, message: 'Coding is locked' };
+  const current = updated.players.find((p) => getUserId(p.user) === String(userId));
+  const interview = await interviewService.ensureInterview(battleId, current);
+  const opponent = updated.players.find((p) => getUserId(p.user) !== String(userId));
+  ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_phase', { phase: 'interview', total: interview.total });
+  ioInstance?.to(`user:${userId}`).emit('interview_thinking', {});
+  const key = `${battleId}:${userId}`;
+  clearTimeout(disconnectTimers[key]);
+  delete disconnectTimers[key];
+  if (updated.players.some((p) => p.phase === 'coding')) armBattleTimer(updated);
+  else { clearTimeout(battleTimers[battleId]); delete battleTimers[battleId]; }
+  armHardCap(updated);
+  processPlayer(battleId, userId).catch(() => {});
+  return { success: true, message: 'Coding locked; interview is starting' };
+};
+
+const onBattleTimeUp = async (battleId) => {
+  const battle = await Battle.findOne({ _id: battleId, status: 'active' });
+  if (!battle) return;
+  await Promise.allSettled(battle.players.filter((p) => p.phase === 'coding').map((p) => endCoding(battleId, getUserId(p.user), 'timeout')));
+};
 
 const saveDraft = async (battleId, userId, language, code) => {
   if (!['javascript', 'python', 'cpp', 'java'].includes(language) || typeof code !== 'string' || code.length > 20000) {
@@ -524,10 +642,11 @@ const saveDraft = async (battleId, userId, language, code) => {
   const battle = await Battle.findById(battleId);
   const player = battle?.players.find((p) => getUserId(p.user) === String(userId));
   if (!player) return { success: false, message: 'Not a participant' };
-  if (battle.status !== 'active' || player.finishedAt || player.finishing || Date.now() >= new Date(battle.endsAt).getTime()) return { success: false, message: 'Coding is locked or time expired' };
+  if (battle.status !== 'active' || player.phase !== 'coding' || player.finishing || Date.now() >= new Date(battle.endsAt).getTime()) return { success: false, message: 'Coding is locked or time expired' };
   const allowed = await redis.set(`ratelimit:draft:${userId}`, '1', 'EX', 2, 'NX');
   if (!allowed) return { success: false, message: 'Maximum one draft per 2 seconds' };
   await redis.set(`draft:${battleId}:${userId}`, JSON.stringify({ language, code, at: Date.now() }), 'EX', 3600);
+  if (!await Battle.exists({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: 'coding' } } })) return { success: false, message: 'Coding is locked' };
   return { success: true, message: 'Draft saved' };
 };
 
@@ -543,51 +662,40 @@ const evaluateCode = async (problem, language, code) => {
 };
 
 const finishPlayer = async (battleId, userId, submission) => {
-  const battle = await Battle.findById(battleId).select('+players.finalCode');
+  const battle = await Battle.findById(battleId);
   const player = battle?.players.find((p) => getUserId(p.user) === String(userId));
   if (!player) return { success: false, message: 'Not a participant' };
-  if (battle.status !== 'active' || player.finishedAt || player.finishing || Date.now() >= new Date(battle.endsAt).getTime()) return { success: false, message: 'Coding is locked or time expired' };
-  let source = submission;
-  if (!source) {
-    const draft = await redis.get(`draft:${battleId}:${userId}`);
-    const saved = draft ? JSON.parse(draft) : null;
-    source = saved && saved.at > (toTimeMs(player.codeUpdatedAt) || 0) ? saved : { language: player.language, code: player.finalCode || '' };
-  }
-  if (typeof source.code !== 'string' || source.code.length > 20000 || (source.code && !['javascript', 'python', 'cpp', 'java'].includes(source.language))) return { success: false, message: 'Invalid language or code' };
-  const claimed = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, finishedAt: null, finishing: { $ne: true } } } }, { $set: { 'players.$.finishing': true, 'players.$.finalCode': source.code, 'players.$.language': source.language, 'players.$.codeUpdatedAt': new Date() } });
+  if (battle.status !== 'active' || player.phase !== 'coding' || player.finishing || Date.now() >= new Date(battle.endsAt).getTime()) return { success: false, message: 'Coding is locked or time expired' };
+  if (!submission) return endCoding(battleId, userId, 'locked');
+  const { language, code } = submission;
+  if (typeof code !== 'string' || code.length > 20000 || !['javascript', 'python', 'cpp', 'java'].includes(language)) return { success: false, message: 'Invalid language or code' };
+  const claimed = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', endsAt: { $gt: new Date() }, players: { $elemMatch: { user: userId, phase: 'coding', finishing: { $ne: true } } } }, { $set: { 'players.$.finishing': true, 'players.$.finalCode': code, 'players.$.language': language, 'players.$.codeUpdatedAt': new Date() } });
   if (!claimed) return { success: false, message: 'Coding is locked' };
   try {
     const problem = await Problem.findById(battle.problem).select('+hiddenTestCases');
-    const { result, myTests, runtimeMs } = await evaluateCode(problem, source.language, source.code);
-    if (submission) await Submission.create({ user: userId, problem: problem._id, battle: battleId, language: source.language, code: source.code, status: result.status, error: result.error || '', testResults: myTests.map((test) => ({ passed: test.passed, timeMs: test.timeMs, output: test.actual || '', expected: test.expected || '' })), passedCount: result.passedCount, totalCount: result.totalCount, executionTimeMs: runtimeMs });
-    const solved = result.totalCount > 0 && result.passedCount === result.totalCount && result.status === 'accepted';
-    const finished = solved || !submission;
+    const { result, myTests, runtimeMs } = await evaluateCode(problem, language, code);
+    await Submission.create({ user: userId, problem: problem._id, battle: battleId, language, code, status: result.status, error: result.error || '', testResults: myTests.map((test) => ({ passed: test.passed, timeMs: test.timeMs, output: test.actual || '', expected: test.expected || '' })), passedCount: result.passedCount, totalCount: result.totalCount, executionTimeMs: runtimeMs });
     const now = new Date();
-    const values = { battleDurationMs: battle.battleDurationMs || new Date(battle.endsAt) - new Date(battle.startedAt), 'players.$.finishing': false, 'players.$.bestPassed': result.passedCount, 'players.$.totalTests': result.totalCount, 'players.$.runtimeMs': runtimeMs, 'players.$.myTests': myTests, 'players.$.lastSubmissionAt': now, 'players.$.resultSource': source.code ? (submission ? 'submit' : 'auto_draft') : 'none' };
-    if (finished) Object.assign(values, { 'players.$.finishedAt': now, 'players.$.finishedBy': solved ? 'solved' : 'locked', 'players.$.solvedAt': solved ? now : null });
-    const fresh = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', 'players.user': userId }, { ...(finished ? { $min: { endsAt: new Date(Date.now() + (Number(process.env.AFTER_FIRST_FINISH_SECONDS) || 180) * 1000) } } : {}), $set: values, $push: { timeline: { user: userId, passedCount: result.passedCount, totalCount: result.totalCount, at: now } } }, { new: true });
-    if (!fresh) return { success: false, message: 'Battle is finalizing' };
-    const opponent = fresh.players.find((p) => getUserId(p.user) !== String(userId));
+    const solved = result.totalCount > 0 && result.passedCount === result.totalCount && result.status === 'accepted';
+    const fresh = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', endsAt: { $gt: now }, players: { $elemMatch: { user: userId, phase: 'coding', finishing: true } } }, { $set: { 'players.$.finishing': solved, 'players.$.bestPassed': result.passedCount, 'players.$.totalTests': result.totalCount, 'players.$.runtimeMs': runtimeMs, 'players.$.myTests': myTests, 'players.$.solvedAt': solved ? now : null, 'players.$.lastSubmissionAt': now, 'players.$.resultSource': 'submit' }, $push: { timeline: { user: userId, passedCount: result.passedCount, totalCount: result.totalCount, at: now } } }, { new: true });
+    if (!fresh) { onBattleTimeUp(battleId).catch(() => {}); return { success: false, message: 'Coding deadline reached' }; }
     const progress = { status: result.status, passedCount: result.passedCount, totalCount: result.totalCount, timeMs: runtimeMs };
     ioInstance?.to(`user:${userId}`).emit('submission_result', progress);
-    ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_progress', { passedCount: result.passedCount, totalCount: result.totalCount, at: now });
-    if (finished) {
-      armBattleTimer(fresh);
-      const payload = { endsAt: fresh.endsAt, serverNow: Date.now(), passedCount: result.passedCount, totalCount: result.totalCount };
-      ioInstance?.to(`user:${userId}`).emit('you_finished', payload);
-      ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_finished', { ...payload, solveTimeMs: solved ? now - new Date(battle.startedAt) : null });
-      if (fresh.players.every((p) => p.finishedAt)) await finishBattle(battleId, null, 'time');
+    if (solved) await endCoding(battleId, userId, 'solved', true);
+    else {
+      const opponent = fresh.players.find((p) => getUserId(p.user) !== String(userId));
+      ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_progress', { passedCount: result.passedCount, totalCount: result.totalCount, at: now });
     }
-    return { success: true, message: finished ? 'Solution locked' : 'Submission evaluated', data: progress };
+    return { success: true, message: solved ? 'Coding locked; interview is starting' : 'Submission evaluated', data: progress };
   } catch (err) {
-    await Battle.updateOne({ _id: battleId, status: 'active', 'players.user': userId }, { $set: { 'players.$.finishing': false } });
+    await Battle.updateOne({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: 'coding' } } }, { $set: { 'players.$.finishing': false } });
     throw err;
   }
 };
 
 const finishBattle = async (battleId, winnerId, reason = 'time', recover = false) => {
   const battle = await Battle.findOneAndUpdate(
-    { _id: battleId, status: recover ? 'finalizing' : 'active' },
+    { _id: battleId, status: recover ? 'finalizing' : 'active', ...(!recover && !['forfeit', 'disconnect'].includes(reason) ? { players: { $not: { $elemMatch: { $or: [{ phase: { $ne: 'done' } }, { codingProcessedAt: null }] } } } } : {}) },
     { status: 'finalizing', ...(recover ? {} : { winner: winnerId || null, reason }) },
     { new: true }
   ).select('+players.finalCode +players.myTests').populate('players.user problem');
@@ -596,45 +704,20 @@ const finishBattle = async (battleId, winnerId, reason = 'time', recover = false
   reason = battle.reason;
   for (const player of battle.players) ioInstance?.to(`user:${getUserId(player.user)}`).emit('battle_finalizing', {});
   const forced = reason === 'forfeit' || reason === 'disconnect';
+  clearTimeout(hardTimers[battleId]);
+  delete hardTimers[battleId];
+  if (forced || recover) await interviewService.cancelBattle(battleId);
   if (!recover || !battle.players.every((player) => player.ratingAfter != null)) {
-    const problem = await Problem.findById(battle.problem._id).select('+hiddenTestCases');
+    const interviews = await Interview.find({ battle: battleId });
     for (const player of battle.players) {
-      if (!player.finishedAt && !forced) {
-        try {
-          const raw = await redis.get(`draft:${battleId}:${getUserId(player.user)}`);
-          const saved = raw ? JSON.parse(raw) : null;
-          const draft = saved && saved.at > (toTimeMs(player.codeUpdatedAt) || 0) ? saved : { code: player.finalCode || '', language: player.language };
-          const evaluated = await evaluateCode(problem, draft.language, draft.code);
-          player.finalCode = draft.code;
-          player.language = draft.language;
-          player.bestPassed = evaluated.result.passedCount;
-          player.totalTests = evaluated.result.totalCount;
-          player.runtimeMs = evaluated.runtimeMs;
-          player.myTests = evaluated.myTests;
-          player.resultSource = draft.code ? 'auto_draft' : 'none';
-          if (evaluated.result.status === 'accepted') player.solvedAt = new Date(battle.endsAt);
-        } catch {
-          player.bestPassed = 0;
-          player.runtimeMs = 0;
-          player.myTests = [];
-          player.resultSource = 'none';
-        }
-      }
-      if (!player.finishedAt) {
-        player.finishedAt = new Date();
-        player.finishedBy = forced ? 'forfeit' : 'timeout';
-      }
+      const record = interviews.find((item) => getUserId(item.user) === getUserId(player.user));
+      player.interview = record ? interviewService.summary(record) : { status: 'failed', score: null };
+      player.phase = 'done';
       player.finishing = false;
+      if (!player.finishedAt) { player.finishedAt = new Date(); player.finishedBy = 'forfeit'; }
     }
-    let timer;
-    const analyses = forced ? [] : await Promise.race([
-      Promise.allSettled(battle.players.map((p) => analyzeSolution({ problem, language: p.language, code: p.finalCode }))),
-      new Promise((resolve) => { timer = setTimeout(() => resolve([]), (Number(process.env.LLM_TIMEOUT_MS) || 20000) + 5000); }),
-    ]);
-    clearTimeout(timer);
-    battle.players.forEach((p, index) => { p.analysis = analyses[index]?.status === 'fulfilled' ? analyses[index].value : null; });
     const computed = computeResult(battle);
-    battle.players.forEach((p, index) => { p.scores = computed.scores[index]; });
+    battle.players.forEach((player, index) => { player.scores = computed.scores[index]; });
     if (!forced) {
       winnerId = computed.winner;
       reason = computed.reason;
@@ -714,8 +797,8 @@ const finishBattle = async (battleId, winnerId, reason = 'time', recover = false
   }
   battle.status = 'finished';
   await battle.save();
-  ioInstance?.to(`user:${p0Id}`).emit('battle_end', formatBattleEndShape(battle, p0Id));
-  ioInstance?.to(`user:${p1Id}`).emit('battle_end', formatBattleEndShape(battle, p1Id));
+  ioInstance?.to(`user:${p0Id}`).emit('battle_end', await formatBattleEndShape(battle, p0Id));
+  ioInstance?.to(`user:${p1Id}`).emit('battle_end', await formatBattleEndShape(battle, p1Id));
 };
 
 const forfeitBattle = async (battleId, userId) => {
@@ -745,7 +828,7 @@ const forfeitBattle = async (battleId, userId) => {
 
 const handleDisconnect = async (userId) => {
   const battle = await Battle.findOne({ 'players.user': userId, status: 'active' });
-  if (!battle) return;
+  if (!battle || battle.players.find((p) => getUserId(p.user) === String(userId))?.phase !== 'coding') return;
 
   const opponent = battle.players.find((p) => getUserId(p.user) !== String(userId));
   if (!opponent) return;
@@ -762,8 +845,10 @@ const handleDisconnect = async (userId) => {
     const userConns = parseInt((await redis.get(`user:connections:${userId}`)) || '0', 10);
     if (userConns > 0) return;
 
+    const current = await Battle.findOne({ _id: battle._id, status: 'active' });
+    if (!current || current.players.find((p) => getUserId(p.user) === String(userId))?.phase !== 'coding') return;
     const oppConns = parseInt((await redis.get(`user:connections:${opponentId}`)) || '0', 10);
-    if (oppConns <= 0) {
+    if (oppConns <= 0 && current.players.every((p) => p.phase === 'coding')) {
       const updated = await Battle.findOneAndUpdate(
         { _id: battle._id, status: 'active' },
         { status: 'abandoned', reason: null },
@@ -967,15 +1052,29 @@ const initBattleEngine = async (io) => {
   const stuck = await Battle.find({ status: 'finalizing' });
   for (const battle of stuck) await finishBattle(battle._id, null, 'time', true);
   await Battle.updateMany({ status: 'active' }, { $set: { 'players.$[].finishing': false } });
-  const activeBattles = await Battle.find({ status: 'active' });
-  for (const b of activeBattles) {
-    const rem = new Date(b.endsAt).getTime() - now;
-    if (rem <= 0 || b.players.every((player) => player.finishedAt)) {
-      await onBattleTimeUp(b._id);
-    } else {
-      armBattleTimer(b);
+  const activeBattles = await Battle.find({ status: 'active' }).select('+players.finalCode');
+  for (const battle of activeBattles) {
+    for (const player of battle.players) {
+      if (player.finishedAt && player.phase === 'coding') {
+        await Battle.updateOne({ _id: battle._id, 'players.user': player.user }, { $set: { 'players.$.phase': 'interview' } });
+        player.phase = 'interview';
+      }
+      if (player.phase !== 'coding') {
+        const interview = await interviewService.ensureInterview(battle._id, player);
+        if (['done', 'failed', 'skipped'].includes(interview.status)) await interviewService.notifyDone(interview);
+        if (!player.codingProcessedAt) processPlayer(battle._id, getUserId(player.user)).catch(() => {});
+      }
     }
+    const current = await Battle.findOne({ _id: battle._id, status: 'active' });
+    if (!current) continue;
+    armHardCap(current);
+    if (current.players.some((player) => player.phase === 'coding')) {
+      if (new Date(current.endsAt).getTime() <= now) await onBattleTimeUp(current._id);
+      else armBattleTimer(current);
+    }
+    await finishBattle(current._id);
   }
+  await interviewService.restore();
 
   const pendingBattles = await Battle.find({ status: 'pending' });
   for (const pb of pendingBattles) {
