@@ -2,6 +2,7 @@ services:
   mongodb:
     image: mongo:7.0
     container_name: codingarena-mongo
+    command: ["mongod", "--replSet", "codingarena", "--bind_ip_all"]
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -10,7 +11,12 @@ services:
     volumes:
       - mongo-data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status() } catch (error) { if (error.code !== 94) throw error; rs.initiate({_id:'codingarena',members:[{_id:0,host:'127.0.0.1:27017'}]}) }; if (!db.hello().isWritablePrimary) quit(1)"
       interval: 10s
       timeout: 5s
       retries: 5

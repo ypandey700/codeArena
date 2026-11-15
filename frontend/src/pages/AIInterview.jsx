@@ -14,6 +14,13 @@ export default function AIInterview({ embedded = false }) {
   const battleId = activeBattle?.battleId;
   const history = interview?.history || [];
   const total = interview?.total;
+  let finalCode = typeof interview?.finalCode === "string" ? interview.finalCode : null;
+  if (finalCode === null && battleId && user?._id) {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(`battle-code:${battleId}:${user._id}`));
+      if (typeof saved?.code === "string") finalCode = saved.code;
+    } catch {}
+  }
   const done = activeBattle?.myPhase === "done" || ["done", "skipped", "failed"].includes(interview?.status);
   const finalizing = activeBattle?.status === "finalizing";
   const thinking = !done && !finalizing && (interview?.thinking || !question);
@@ -328,7 +335,7 @@ export default function AIInterview({ embedded = false }) {
     <section className="mx-auto max-w-[1000px] rounded-xl border border-[#fddf49]/30 bg-[#1e2020] p-4 shadow-[0_12px_50px_#00000020] sm:p-5">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fddf49]/20"><span className="h-4 w-4 rounded-full bg-[#fddf49] shadow-[0_0_14px_#fddf4940]" /></span><div><h1 className="text-sm font-semibold tracking-wide text-[#f2f2f2]">DR. EVELYN VANCE <span className="ml-2 text-[11px] font-normal text-[#fddf49]">/ AI CODE ARBITER</span></h1><p className="mt-1 text-[11px] text-[#a6a6a1]">{activeBattle.problem?.title || "1v1 Duel"} / {done ? "Interview complete" : Number.isInteger(step) ? `Question ${step + 1} of ${total ?? "—"}` : "Preparing interview"}</p></div></div><span className="rounded-md border border-[#fddf49]/20 bg-[#fddf49]/10 px-3 py-1.5 text-[10px] font-medium text-[#fddf49]">{finalizing ? "SCORING" : done ? "WAITING FOR OPPONENT" : "AI INTERVIEW"}</span></header>
       <p className="mb-4 flex items-center gap-2 text-[11px] text-[#94bc9d]"><CheckCircle2 size={13} />Your solution / {testsPassed ?? "—"} of {testsTotal ?? "—"} tests passed</p>
-      <details className="mb-4 rounded-lg border border-white/10 bg-[#151919] p-3"><summary className="cursor-pointer text-xs text-[#a7b3ba]">Your final code · read only</summary><pre tabIndex={0} className="mt-3 max-h-64 overflow-auto font-mono text-xs leading-6 text-[#c1cbd1]">{typeof interview?.finalCode === "string" ? interview.finalCode || "No code saved." : "Loading your final code…"}</pre></details>
+      <section className="mb-4 rounded-lg border border-[#fddf49]/20 bg-[#151919] p-4" aria-label="Your submitted code"><h2 className="text-xs font-semibold text-[#fddf49]">Your submitted code · read only</h2><p className="mt-1 text-[11px] text-[#a7b3ba]">Refer to your solution while answering. It stays visible while scoring.</p><pre tabIndex={0} className="mt-3 max-h-80 overflow-auto whitespace-pre font-mono text-xs leading-6 text-[#c1cbd1]">{finalCode === null ? "Loading your submitted code…" : finalCode || "No code saved."}</pre></section>
       {(done || finalizing) && <div role="status" className="mb-4 rounded-lg border border-[#fddf49]/30 bg-[#151919] p-4 text-sm text-[#fddf49]"><p>{finalizing ? "Scoring both interviews…" : `Interview complete. The verdict comes after ${opponent} finishes.`}</p><p className="mt-2 text-xs text-[#b8c0c5]">{opponent}: {phaseLabel}</p></div>}
       <div className="relative aspect-[16/8] min-h-[220px] overflow-hidden rounded-lg border border-[#fddf49]/30 bg-[#0b1219] sm:min-h-[300px]">
         {!imageFailed ? <img src={portrait} alt="Fictional AI interviewer in a coding arena" onError={() => setImageFailed(true)} className="h-full w-full object-cover object-top" /> : <div className="flex h-full items-center justify-center text-[#7ba1b8]"><UserRound size={90} strokeWidth={1} /></div>}

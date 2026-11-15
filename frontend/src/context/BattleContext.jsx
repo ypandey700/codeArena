@@ -55,6 +55,17 @@ export function BattleProvider({ children }) {
     activeBattleRef.current = next;
     setActiveBattle(next);
   };
+  const receiveBattleResult = useCallback((data) => {
+    if (!data?.battleId || completedBattleRef.current === data.battleId) return;
+    completedBattleRef.current = data.battleId;
+    activeBattleRef.current = null;
+    setBattleResult(data);
+    localStorage.setItem("lastBattleId", data.battleId);
+    refreshUser?.();
+    setActiveBattle(null);
+    setDuelState("report_full");
+  }, [refreshUser]);
+
   const rememberCode = (battleId, language, code) => {
     try {
       sessionStorage.setItem(`battle-code:${battleId}:${user?._id}`, JSON.stringify({ language, code }));
@@ -152,6 +163,23 @@ export function BattleProvider({ children }) {
       }
     }
   };
+
+  useEffect(() => {
+    if (activeBattle?.status !== "finalizing") return;
+    const battleId = activeBattle.battleId;
+    let cancelled = false;
+    let timer;
+    const sync = async () => {
+      try {
+        const response = await api.get(`/battles/${battleId}`, { timeout: 10000 });
+        const data = response.data?.data;
+        if (!cancelled && activeBattleRef.current?.battleId === battleId && data?.status === "finished") receiveBattleResult(data);
+      } catch {}
+      if (!cancelled) timer = setTimeout(sync, 3000);
+    };
+    sync();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [activeBattle?.battleId, activeBattle?.status, receiveBattleResult]);
 
   useEffect(() => {
     if (inQueue) {
@@ -343,17 +371,7 @@ export function BattleProvider({ children }) {
         updateBattle({ status: "finalizing" });
         mergeInterview({ entered: true, question: null, thinking: false });
       };
-      const onBattleEnd = (data) => {
-        completedBattleRef.current = data?.battleId;
-        activeBattleRef.current = null;
-        setBattleResult(data);
-        if (data?.battleId) {
-          localStorage.setItem("lastBattleId", data.battleId);
-        }
-        refreshUser?.();
-        setActiveBattle(null);
-        setDuelState("report_full");
-      };
+      const onBattleEnd = receiveBattleResult;
 
       socket.on("connect", onConnect);
       socket.on("queue_status", onQueueStatus);
@@ -406,7 +424,7 @@ export function BattleProvider({ children }) {
       clearInterval(socketInterval);
       cleanupSocket?.();
     };
-  }, [user]);
+  }, [user, receiveBattleResult]);
 
   const joinQueue = (mode = "ranked_1v1") => {
     const socket = getSocket();

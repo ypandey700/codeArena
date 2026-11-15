@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Battle = require('../models/Battle');
 const Problem = require('../models/Problem');
 const Submission = require('../models/Submission');
@@ -5,7 +6,7 @@ const User = require('../models/User');
 const redis = require('../config/redis');
 const { runSubmission } = require('./codeRunnerService');
 const { analyzeSolution } = require('./analysisService');
-const { computeResult } = require('../config/scoring');
+const { computeResult, scoringInfo } = require('../config/scoring');
 const Interview = require('../models/Interview');
 const interviewService = require('./interviewService');
 const { getTier } = require('../utils/tier');
@@ -163,6 +164,21 @@ const formatBattleState = async (battle, userId) => {
   return base;
 };
 
+const playerRecord = async (user, session) => {
+  const wins = user.stats?.wins || 0;
+  const losses = user.stats?.losses || 0;
+  const draws = user.stats?.draws || 0;
+  const matches = wins + losses + draws;
+  const rank = 1 + await User.countDocuments({ rating: { $gt: user.rating } }).session(session || null);
+  return { rating: user.rating, tier: getTier(user.rating), rank, wins, losses, draws, matches, winRate: matches ? Math.round(wins / matches * 100) : 0, streak: user.stats?.streak || 0, peakRating: user.stats?.peakRating || user.rating };
+};
+
+const headToHead = async (userId, opponentId) => {
+  const battles = await Battle.find({ status: 'finished', 'players.user': { $all: [userId, opponentId] } }).select('winner').sort({ createdAt: -1, _id: -1 }).lean();
+  const results = battles.map((battle) => !battle.winner ? 'D' : String(battle.winner) === String(userId) ? 'W' : 'L');
+  return { total: results.length, wins: results.filter((result) => result === 'W').length, losses: results.filter((result) => result === 'L').length, draws: results.filter((result) => result === 'D').length, last: results.slice(0, 5) };
+};
+
 const formatBattleEndShape = async (battle, userId) => {
   const interviews = await Interview.find({ battle: battle._id });
   const me = battle.players.find((player) => getUserId(player.user) === String(userId));
@@ -172,14 +188,20 @@ const formatBattleEndShape = async (battle, userId) => {
   const u0 = p0 && p0.user;
   const u1 = p1 && p1.user;
 
+  const scoring = scoringInfo(battle.players);
+  const records = await Promise.all(battle.players.map(async (player) => player.record || { ...await playerRecord(await User.findById(getUserId(player.user))), isCurrent: true }));
+  const opponent = battle.players.find((player) => getUserId(player.user) !== String(userId));
+  const history = await headToHead(userId, getUserId(opponent.user));
   const formatPlayer = (player, userDoc) => ({
+    record: records[battle.players.indexOf(player)],
+    points: Object.fromEntries(Object.entries(scoring.activeWeights).map(([key, weight]) => [key, player.scores[key] * weight / 100])),
     userId: getUserId(player?.user || userDoc),
     username: userDoc && typeof userDoc === 'object' && userDoc.username ? userDoc.username : '',
     avatar: userDoc && typeof userDoc === 'object' && userDoc.avatar ? userDoc.avatar : '',
     passedCount: player ? player.bestPassed : 0,
     totalTests: player ? player.totalTests : 0,
     solveTimeMs: player && player.solvedAt && startedTime ? Math.max(0, toTimeMs(player.solvedAt) - startedTime) : null,
-    runtimeMs: player ? (typeof player.get === 'function' ? player.get('runtimeMs') : player.runtimeMs) ?? null : null,
+    runtimeMs: Number(player?.runtimeMs) || 0,
     ratingBefore: player ? player.ratingBefore : 1200,
     ratingAfter: player ? player.ratingAfter : null,
     ratingDelta: player ? player.ratingDelta : null,
@@ -187,7 +209,7 @@ const formatBattleEndShape = async (battle, userId) => {
     phase: player?.phase || 'coding',
     interview: (() => {
       const interview = interviews.find((record) => getUserId(record.user) === getUserId(player.user));
-      if (!interview) return null;
+      if (!interview) return { score: player.scores?.interview ?? null, understanding: 0, answered: 0, total: 0 };
       const own = getUserId(player.user) === String(userId);
       const { status, ...numbers } = interviewService.summary(interview);
       return { ...numbers, score: player.scores ? player.scores.interview : numbers.score, ...(own ? { perQuestion: interview.questions.map((q) => ({ question: q.text, answer: q.answer, status: q.status, accuracy: q.accuracy, depth: q.depth, clarity: q.clarity })), feedback: interview.feedback } : {}) };
@@ -204,6 +226,8 @@ const formatBattleEndShape = async (battle, userId) => {
   return {
     battleId: String(battle._id),
     status: battle.status,
+    scoring,
+    headToHead: history,
     ...(me && me.finalCode !== undefined ? { myCode: { language: me.language || '', code: me.finalCode || '' } } : {}),
     winner: battle.winner ? String(battle.winner) : null,
     reason: battle.reason || null,
@@ -781,22 +805,40 @@ const finishBattle = async (battleId, winnerId, reason = 'time', recover = false
   p1.xpGained = xp1;
 
   await battle.save();
-  for (const [player, score, rating, xp] of [[p0, s0, newR0, xp0], [p1, s1, newR1, xp1]]) {
-    const battleKey = String(battle._id);
-    const add = (field, amount) => ({ $add: [{ $ifNull: [`$${field}`, 0] }, amount] });
-    await User.collection.updateOne({ _id: player.user._id, appliedBattleResults: { $ne: battleKey } }, [{ $set: {
-      rating,
-      xp: add('xp', xp),
-      'stats.wins': add('stats.wins', score === 1 ? 1 : 0),
-      'stats.losses': add('stats.losses', score === 0 ? 1 : 0),
-      'stats.draws': add('stats.draws', score === 0.5 ? 1 : 0),
-      'stats.streak': score === 1 ? add('stats.streak', 1) : score === 0 ? 0 : { $ifNull: ['$stats.streak', 0] },
-      'stats.peakRating': { $max: [{ $ifNull: ['$stats.peakRating', 1200] }, rating] },
-      appliedBattleResults: { $concatArrays: [{ $ifNull: ['$appliedBattleResults', []] }, [battleKey]] },
-    } }]);
+  const session = await mongoose.startSession();
+  try {
+    const savedRecords = battle.players.map((player) => player.record);
+    await session.withTransaction(async () => {
+      battle.players.forEach((player, index) => { player.record = savedRecords[index]; });
+      for (const [player, score, rating, xp] of [[p0, s0, newR0, xp0], [p1, s1, newR1, xp1]]) {
+        const battleKey = String(battle._id);
+        const add = (field, amount) => ({ $add: [{ $ifNull: [`$${field}`, 0] }, amount] });
+        await User.collection.updateOne({ _id: player.user._id, appliedBattleResults: { $ne: battleKey } }, [{ $set: {
+          rating,
+          xp: add('xp', xp),
+          'stats.wins': add('stats.wins', score === 1 ? 1 : 0),
+          'stats.losses': add('stats.losses', score === 0 ? 1 : 0),
+          'stats.draws': add('stats.draws', score === 0.5 ? 1 : 0),
+          'stats.streak': score === 1 ? add('stats.streak', 1) : score === 0 ? 0 : { $ifNull: ['$stats.streak', 0] },
+          'stats.peakRating': { $max: [{ $ifNull: ['$stats.peakRating', 1200] }, rating] },
+          appliedBattleResults: { $concatArrays: [{ $ifNull: ['$appliedBattleResults', []] }, [battleKey]] },
+        } }], { session });
+      }
+      for (const player of battle.players) {
+        if (!player.record) player.record = await playerRecord(await User.findById(getUserId(player.user)).session(session), session);
+      }
+      await Battle.updateOne({ _id: battle._id, status: 'finalizing' }, { $set: { status: 'finished', 'players.0.record': p0.record, 'players.1.record': p1.record } }, { session });
+    });
+  } catch (error) {
+    console.error(`Battle ${battleId} finalization failed: ${error.message}`);
+    hardTimers[battleId] = setTimeout(() => {
+      finishBattle(battleId, null, 'time', true).catch(() => {});
+    }, 5000);
+    throw error;
+  } finally {
+    await session.endSession();
   }
   battle.status = 'finished';
-  await battle.save();
   ioInstance?.to(`user:${p0Id}`).emit('battle_end', await formatBattleEndShape(battle, p0Id));
   ioInstance?.to(`user:${p1Id}`).emit('battle_end', await formatBattleEndShape(battle, p1Id));
 };
@@ -1050,7 +1092,7 @@ const initBattleEngine = async (io) => {
 
   const now = Date.now();
   const stuck = await Battle.find({ status: 'finalizing' });
-  for (const battle of stuck) await finishBattle(battle._id, null, 'time', true);
+  for (const battle of stuck) await finishBattle(battle._id, null, 'time', true).catch(() => {});
   await Battle.updateMany({ status: 'active' }, { $set: { 'players.$[].finishing': false } });
   const activeBattles = await Battle.find({ status: 'active' }).select('+players.finalCode');
   for (const battle of activeBattles) {
@@ -1107,6 +1149,7 @@ module.exports = {
   getArenaStats,
   formatBattleState,
   formatBattleEndShape,
+  headToHead,
   getUserId,
   toTimeMs,
 };

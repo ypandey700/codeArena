@@ -163,12 +163,28 @@ const scenarios = async () => {
   requirePass(ctx.events[0][0].players.every((p) => p.scores.interview === 80 && p.interview.score === 80), 'Interview formula incorrect');
   const details = await fetch(`${base}/battles/${ctx.battle._id}`, { headers: { Authorization: `Bearer ${ctx.tokens[0]}` } }).then((res) => res.json());
   requirePass(details.data.myCode.code === code && details.data.players[0].interview.perQuestion.length === 2 && !('perQuestion' in details.data.players[1].interview), 'GET privacy or transcript mismatch');
+  const perspectives = ctx.events.map((events) => events[0]);
+  for (const payload of [...perspectives, details.data]) {
+    requirePass(payload.headToHead.total === 1, 'Head-to-head excludes current battle');
+    requirePass(Math.abs(Object.values(payload.scoring.activeWeights).reduce((sum, value) => sum + value, 0) - 100) < 0.001, 'Active weights do not sum to 100');
+    for (const player of payload.players) {
+      requirePass(player.record && ['rating', 'rank', 'wins', 'losses', 'draws', 'matches', 'winRate', 'streak', 'peakRating'].every((key) => Number.isFinite(player.record[key])) && typeof player.record.tier === 'string', 'Missing record snapshot');
+      requirePass(player.record.matches === 1 && !player.record.isCurrent, 'Record is not a final snapshot');
+      requirePass(Math.abs(Object.values(player.points).reduce((sum, value) => sum + value, 0) - player.scores.total) < 0.1, 'Points do not sum to total');
+      requirePass(['runtimeMs', 'passedCount', 'totalTests', 'solveTimeMs'].every((key) => Number.isFinite(player[key])), 'Missing numeric evaluation metrics');
+      requirePass(['score', 'understanding', 'answered', 'total'].every((key) => Number.isFinite(player.interview[key])), 'Missing numeric interview metrics');
+      requirePass(typeof player.timeComplexity === 'string' && typeof player.spaceComplexity === 'string' && Object.values(player.quality).every(Number.isFinite), 'Missing analysis metrics');
+    }
+  }
+  requirePass(perspectives[0].headToHead.wins === perspectives[1].headToHead.losses && perspectives[0].headToHead.losses === perspectives[1].headToHead.wins && perspectives[0].headToHead.draws === perspectives[1].headToHead.draws, 'Head-to-head perspectives do not mirror');
+  requirePass(JSON.stringify(perspectives[0].players.map((player) => player.record)) === JSON.stringify(details.data.players.map((player) => player.record)), 'GET changed saved snapshots');
+  console.log('PASS result-comparison: both records, current battle in head-to-head, mirrored perspectives, points equal totals, numeric metrics, private GET payloads');
   console.log('PASS interview-flow: both answered, interview scores 80/80, winner after both, one battle_end per player, private GET payloads');
 
   ctx = await makeBattle();
   await Promise.all([draftAndFinish(ctx, 0), draftAndFinish(ctx, 1)]);
   const grounded = await currentQuestion(ctx, 0);
-  requirePass(/line 1/.test(grounded.question.text) && !/walk me through/i.test(grounded.question.text), 'Question was not code-specific');
+  requirePass(/map/i.test(grounded.question.text) && !/line \d|`|walk me through/i.test(grounded.question.text), 'Question was not a plain-language implementation question');
   await Promise.all([answerAll(ctx, 0, true), answerAll(ctx, 1)]);
   await completed(ctx);
   const skippedInterview = await Interview.findOne({ battle: ctx.battle._id, user: ctx.users[0] });

@@ -7,6 +7,7 @@ const playerSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    record: { type: mongoose.Schema.Types.Mixed, default: null },
     ratingBefore: {
       type: Number,
       required: true,
@@ -131,7 +132,7 @@ const battleSchema = new mongoose.Schema(
   }
 );
 
-battleSchema.index({ 'players.user': 1, status: 1 });
+battleSchema.index({ 'players.user': 1, status: 1, createdAt: -1 });
 battleSchema.index({ status: 1, endsAt: 1 });
 
 module.exports = mongoose.model('Battle', battleSchema);
