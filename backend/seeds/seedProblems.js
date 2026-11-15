@@ -1111,7 +1111,10 @@ const seedDB = async () => {
     const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/codingarena';
     await mongoose.connect(mongoUri);
 
+    const constantSpace = new Set(['fizzbuzz', 'palindrome-check', 'maximum-subarray']);
     for (const problem of problems) {
+      problem.optimalTime = 'O(n)';
+      problem.optimalSpace = constantSpace.has(problem.slug) ? 'O(1)' : 'O(n)';
       await Problem.findOneAndUpdate(
         { slug: problem.slug },
         problem,

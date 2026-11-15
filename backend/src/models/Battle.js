@@ -40,6 +40,17 @@ const playerSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    codeUpdatedAt: Date,
+    finishedAt: Date,
+    finishing: { type: Boolean, default: false },
+    runtimeMs: { type: Number, default: null },
+    finalCode: { type: String, default: '', select: false },
+    language: String,
+    myTests: { type: [mongoose.Schema.Types.Mixed], default: [], select: false },
+    analysis: { type: mongoose.Schema.Types.Mixed, default: null },
+    scores: { type: mongoose.Schema.Types.Mixed, default: null },
+    finishedBy: { type: String, enum: ['solved', 'locked', 'timeout', 'forfeit'] },
+    resultSource: { type: String, enum: ['submit', 'auto_draft', 'none'], default: 'none' },
     lastSubmissionAt: {
       type: Date,
       default: null,
@@ -85,12 +96,13 @@ const battleSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'active', 'finished', 'cancelled', 'abandoned'],
+      enum: ['pending', 'active', 'finalizing', 'finished', 'cancelled', 'abandoned'],
       default: 'pending',
     },
     acceptDeadline: {
       type: Date,
     },
+    battleDurationMs: Number,
     startedAt: {
       type: Date,
     },

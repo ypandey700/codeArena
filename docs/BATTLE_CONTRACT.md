@@ -1,73 +1,103 @@
-# Battle Contract & Frontend Flow Audit
+# Battle Contract
 
-## 1. Frontend Audit Summary
+## Lifecycle
 
-An audit of the frontend battle flow (`BattleModes.jsx`, `Matchmaking.jsx`, `BattleArena.jsx`, `PostMatchResults.jsx`, `PostMortemReport.jsx`, and public templates `battle-modes.html`, `matchmaking-queue.html`, `battle-arena.html`, `match-report.html`) identified the following integration surface:
+A match begins pending. Both players accept within ACCEPT_WINDOW_SECONDS, then it becomes active for BATTLE_DURATION_SECONDS. Passing every test finishes and locks that player; it does not decide the winner. An explicit battle_finish evaluates the latest saved code against all sample and hidden tests and locks that player even if tests fail. Locked players cannot submit or update drafts.
 
-- **Battle Modes**: The primary active mode is 1v1 Ranked Duel (`ranked_1v1`).
-- **Matchmaking & Match Found**: Displays a 30-second accept timer, opponent card (username, rating RR, tier, win rate, streak), target problem preview (title, difficulty, category), and projected rating delta (e.g. +35 win / -22 loss). Supports accepting or declining.
-- **Battle Room**: Uses a 15-minute duel countdown timer, problem description pane with sample test cases and starter code, multi-language editor (Python, JavaScript, C++, Java), local test execution (`POST /api/v1/submissions/run`), duel submission, forfeit/concede action, and live in-match tactical chat with quick phrases and opponent test suite progress notifications.
-- **Post-Match Report**: Shows test pass count (e.g. 15/15), match verdict (Victory/Defeat/Draw), rating change (RR delta), tier progression, XP gained, and performance breakdown.
+The first finish shortens endsAt to min(current endsAt, now + AFTER_FIRST_FINISH_SECONDS), default 180 seconds. Both players receive the new server deadline. The second player can keep coding until that deadline. A later finish cannot extend it.
 
----
+Both finished players or the deadline trigger an atomic active -> finalizing transition. Only its successful caller evaluates remaining drafts and computes the result. For each unfinished player, use the latest draft or last submitted code. No code gives zero passing tests. Runtime is the sum of per-test runtimes. The original battle duration remains the speed denominator after shortening.
 
-## 2. Rating Tiers & Thresholds
+Finalizing emits battle_finalizing, evaluates remaining code, and analyzes both solutions concurrently with Promise.allSettled. Analysis has an overall LLM_TIMEOUT_MS + 5000 millisecond limit. Missing credentials, invalid output, provider errors and timeouts remove analysis components symmetrically. Interview remains null. The server computes component scores, total, winner, Elo and XP, then persists finished and sends a separate battle_end to each participant.
 
-| Tier | Rating Range (RR) |
-| :--- | :--- |
-| **Bronze** | 0 – 999 |
-| **Silver** | 1000 – 1199 |
-| **Gold** | 1200 – 1399 |
-| **Platinum** | 1400 – 1599 |
-| **Diamond** | 1600 – 1899 |
-| **Ascendant** | 1900 – 2199 |
-| **Immortal** | 2200 – 2499 |
-| **Radiant** | 2500+ |
+Ratings, wins, losses, draws, streak and XP use an atomic per-user appliedBattleResults marker. Restart recovery reuses checkpointed scores and winner after rating application has been prepared, so a partially applied result is completed without applying it twice. Active deadlines are re-armed on boot; expired battles, both-finished active battles and stuck finalizing battles are completed. In-flight submission locks are cleared at boot.
 
----
+Forfeit still immediately awards the opponent a win. Disconnect retains RECONNECT_GRACE_SECONDS and both-disconnected abandonment. Forced forfeit/disconnect outcomes skip draft execution and analysis to avoid delaying concession. No interview phase is implemented.
 
-## 3. Socket Events Specification
+## Client socket events
 
-### Client to Server
+All events require authentication and participants only. Acknowledgments use {success, message} and, where applicable, data.
 
-| Event | Payload | Description |
-| :--- | :--- | :--- |
-| `queue_join` | `{ mode?: string }` | Enqueue user for matchmaking. Ack: `{ success, message }`. |
-| `queue_leave` | None | Dequeue user from matchmaking. Ack: `{ success, message }`. |
-| `match_accept` | `{ battleId: string }` | Accept a pending match. Ack: `{ success, message }`. |
-| `match_decline` | `{ battleId: string }` | Decline a pending match (triggers `ACCEPT_WINDOW_SECONDS` queue cooldown, default 30s). Ack: `{ success, message }`. |
-| `battle_join` | `{ battleId: string }` | Join / re-sync battle state after refresh. Ack: `{ success: true, data: battle_state }` or `{ success: false, message }`. Also emits `battle_state`. |
-| `battle_forfeit` | `{ battleId: string }` | Forfeit the active battle. Opponent wins immediately. Ack: `{ success, message }`. |
-| `battle_chat` | `{ battleId: string, text: string }` | Send in-battle chat message (max 200 chars, rate-limited to 5 per 5s). Ack: `{ success, message }`. |
+| Event | Payload | Behavior |
+| --- | --- | --- |
+| queue_join | {mode?} | Join the ranked queue. |
+| queue_leave | {} | Leave the queue. |
+| match_accept | {battleId} | Accept a pending match. |
+| match_decline | {battleId} | Decline and apply queue cooldown. |
+| battle_join | {battleId} | Ack {success, data: battle_state} and emit battle_state for resync. |
+| code_draft | {battleId, language, code} | Save privately in Redis draft:<battleId>:<userId>, TTL 3600 seconds, maximum 20000 characters, one update per 2 seconds per user. |
+| battle_finish | {battleId} | Evaluate latest code against all tests, then lock. |
+| battle_forfeit | {battleId} | Opponent wins immediately. |
+| battle_chat | {battleId, text} | Maximum 200 characters, 5 messages per 5 seconds. |
 
-### Server to Client
+Languages: javascript, python, cpp, java. Submissions for the same player are serialized with a database claim; finalization prevents in-flight work from overwriting the final result.
 
-| Event | Payload | Description |
-| :--- | :--- | :--- |
-| `queue_status` | `{ waitingSeconds: number, playersInQueue: number }` | Emitted every 3 seconds while in queue. |
-| `match_found` | `{ battleId, acceptDeadline, serverNow, opponent: { username, avatar, rating, tier, winRate, streak }, problem: { title, difficulty, category }, ratingPreview: { win, loss } }` | Emitted to both players when a match is created. |
-| `match_cancelled` | `{ battleId, reason: string }` | Emitted if a player declines or the accept deadline expires (`ACCEPT_WINDOW_SECONDS`). |
-| `battle_start` | `{ battleId, serverNow, startedAt, endsAt, problem: { _id, title, slug, description, difficulty, category, sampleTestCases, starterCode, timeLimitMs, memoryLimitMb }, opponent: { _id, username, avatar, rating, tier } }` | Emitted to both players when both accept. Starts server timer (`BATTLE_DURATION_SECONDS`, default 15m). |
-| `submission_result` | `{ status, passedCount, totalCount, timeMs }` | Emitted to submitter after code execution against all tests. |
-| `opponent_progress` | `{ passedCount, totalCount, at }` | Emitted to opponent when submitter tests are evaluated (no code or test I/O). |
-| `opponent_disconnected` | `{ graceSeconds }` | Emitted when opponent drops all socket connections mid-battle (`RECONNECT_GRACE_SECONDS`, default 30s). |
-| `opponent_reconnected` | None | Emitted when opponent returns within the grace window. |
-| `battle_state` | `{ battleId, status, serverNow, opponent: { _id, username, avatar, rating, tier }, ... }` | Sent in reply to `battle_join`. For pending: includes `acceptDeadline`, `problem: { title, difficulty, category }`, `ratingPreview: { win, loss }`. For active: includes `startedAt`, `endsAt`, `problem`, `ownProgress`, `opponentProgress`, `lastChatMessages`. |
-| `battle_chat_message` | `{ from: string, text: string, at: number }` | Broadcast to match participants for chat messages. |
-| `battle_end` | `{ battleId, status: "finished", winner: string\|null, reason: string, players: [{ username, avatar, passedCount, totalTests, solveTimeMs, runtimeMs, ratingBefore, ratingAfter, ratingDelta, xpGained }], timeline }` | Emitted when battle concludes by solve, time, forfeit, disconnect, or draw. |
+## Server socket events
 
----
+| Event | Payload |
+| --- | --- |
+| queue_status | {waitingSeconds, playersInQueue} |
+| match_found | {battleId, acceptDeadline, serverNow, opponent, problem, ratingPreview} |
+| match_cancelled | {battleId, reason} |
+| battle_start | {battleId, serverNow, startedAt, endsAt, problem, opponent} |
+| battle_state | {battleId, status, serverNow, startedAt, endsAt, ownFinished, opponentFinished, opponent, players, problem, ownProgress, opponentProgress, lastChatMessages}; pending state instead includes acceptDeadline and ratingPreview. |
+| submission_result | {status, passedCount, totalCount, timeMs} |
+| opponent_progress | {passedCount, totalCount, at} |
+| you_finished | {endsAt, serverNow, passedCount, totalCount} |
+| opponent_finished | {endsAt, serverNow, passedCount, totalCount, solveTimeMs} |
+| battle_finalizing | {} |
+| battle_end | Participant-specific result described below. |
+| opponent_disconnected | {graceSeconds} |
+| opponent_reconnected | No payload. |
+| battle_chat_message | {from, text, at} |
 
-## 4. HTTP API Endpoints
+## HTTP
 
-All endpoints use standard envelope `{ success: true, data: { ... } }` or error `{ message: "..." }`.
+Success envelope: {success: true, data}; errors: {message}.
 
-| Method | Endpoint | Auth | Description |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/arena/stats` | Public | Returns `{ online, inQueue, inBattles }`. |
-| `GET` | `/api/v1/battles/active` | Bearer | Returns the user's current pending or active battle `{ battle: battle_state }`, or `{ battle: null }` if none active. |
-| `POST` | `/api/v1/battles/:id/submit` | Bearer | Evaluates code against full test suite, updates progress, checks win. Rate limited via Redis (10 per minute per user; returns 429 `{ message }`). |
-| `GET` | `/api/v1/battles/:id` | Bearer | Returns battle details matching `battle_end` shape plus `status` (participants only). |
-| `GET` | `/api/v1/battles/me` | Bearer | Returns user's battle history (paginated: `page`, `limit`). |
-| `POST` | `/api/v1/submissions/run` | Bearer | Runs code against sample test cases (not counted in battle). |
-| `GET` | `/api/v1/users/:username` | Public | Returns user profile including `rank` (1 + higher rated users) and `tier`. |
+| Method | Route | Result |
+| --- | --- | --- |
+| GET | /api/v1/battles/active | {battle: battle_state}, including finalizing battles; battle is null if absent. |
+| POST | /api/v1/battles/:id/submit | Evaluate all tests, save latest code and result, lock if solved. Maximum 10 per minute per user, 20000 characters. Returns {status, passedCount, totalCount, timeMs}. |
+| GET | /api/v1/battles/:id | Participant-specific battle_end shape, including current status. |
+| GET | /api/v1/battles/me | Paginated participant-safe result summaries. |
+| POST | /api/v1/submissions/run | Existing sample-only execution. |
+
+## Result privacy
+
+battle_end and GET /battles/:id contain battleId, status, winner, reason, problem, players and timeline. Problem includes title, slug, difficulty, category, optimalTime and optimalSpace.
+
+Both players include userId, username, avatar, passedCount, totalTests, solveTimeMs, runtimeMs, ratingBefore, ratingAfter, ratingDelta, xpGained, finishedBy, resultSource, scores, detected timeComplexity, spaceComplexity and quality {naming, readability, maintainability, idioms}.
+
+finishedBy is solved, locked, timeout or forfeit. resultSource is submit, auto_draft or none. auto_draft means server-initiated evaluation of saved code; none means no code/result available.
+
+Only the requesting player's row includes myTests and feedback tips. Each test has index (zero-based), passed, status, timeMs and optional error. Sample tests additionally include input, expected and actual. Hidden tests never include these three fields. The opponent never receives code, drafts, per-test details or feedback. Hidden test definitions and stressTest are excluded from battle state.
+
+## Scoring
+
+WEIGHTS = {correctness: 25, speed: 8, runtime: 7, timeComplexity: 12, spaceComplexity: 3, quality: 15, interview: 30}.
+
+- Correctness: passed / total * 100; no tests gives 0.
+- Speed: solved ? max(0, round(100 * (1 - solveTimeMs / originalBattleDurationMs))) : 0, capped at 100.
+- Runtime: solved ? clamp(round(100 * (1 - runtimeMs / problem.timeLimitMs)), 0, 100) : 0.
+- Complexity ladder: O(1), O(log n), O(n), O(n log n), O(n^2), O(n^3), O(2^n), O(n!). Equal or better than optimal scores 100; each worse class subtracts 35, minimum 0. O(n+m) normalizes to O(n).
+- Quality: round(mean(naming, readability, maintainability, idioms) * 10).
+- Zero passing tests scores 0 for available complexity and quality components.
+- Analysis failure or skip for either player makes analysis components null for both. Missing optimal complexity removes that complexity component for both. Interview is always null.
+- Total is the weighted average of non-null components, renormalized. A difference under 1 point is a draw; otherwise the higher total wins. Totals are compared before display rounding.
+
+The LLM provides validated complexity classes and quality subscores, never totals, winner or ratings. All score formulas run on the server.
+
+## Analysis and configuration
+
+callLLM uses plain fetch and supports anthropic/openai. Missing LLM_API_KEY skips analysis. LLM_MOCK=true returns deterministic JSON without network requests. Code and problem are untrusted data; instructions embedded in code cannot change the requested analysis contract. Invalid JSON is retried once, then analysis becomes null. Quality values are validated as integers and clamped 0-10; feedback has at most three short tips.
+
+New environment variables: AFTER_FIRST_FINISH_SECONDS=180, LLM_PROVIDER=openai, LLM_API_KEY, LLM_MODEL=gpt-4o-mini, LLM_BASE_URL (optional API base including /v1), LLM_TIMEOUT_MS=20000, LLM_MOCK=false.
+
+Problem seeds upsert eight real slugs with optimal complexity metadata. stressTest.input is optional and unused in this step.
+
+## Development verification
+
+LLM_MOCK=true node backend/scripts/analyzeTest.js prints hash-map, nested-loop and messy analysis. Nested-loop is O(n^2) and scores lower.
+
+node backend/scripts/battleSim.js uses mock analysis, short timers, an isolated temporary MongoDB database and a private Redis prefix. It exercises real Socket.IO handlers, HTTP controllers, MongoDB, Redis and Docker execution. Scenarios: first-finisher, draft-autoeval, simultaneous double-finish and one-player analysis failure. Analysis failure is injected only in the simulator, never through player code. It checks one battle_end per participant, private result payloads and one rating/stat/XP application. Temporary database and Redis keys are removed afterwards.

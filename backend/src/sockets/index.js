@@ -13,6 +13,8 @@ const {
   handleReconnect,
   getBattleState,
   handleChatMessage,
+  finishPlayer,
+  saveDraft,
 } = require('../services/battleService');
 
 let io;
@@ -124,6 +126,24 @@ function initSocket(server) {
         } else {
           if (typeof ack === 'function') ack(res);
         }
+      } catch (err) {
+        if (typeof ack === 'function') ack({ success: false, message: err.message });
+      }
+    });
+
+    socket.on('code_draft', async (data, ack) => {
+      try {
+        const result = await saveDraft(data?.battleId, userId, data?.language, data?.code);
+        if (typeof ack === 'function') ack(result);
+      } catch (err) {
+        if (typeof ack === 'function') ack({ success: false, message: err.message });
+      }
+    });
+
+    socket.on('battle_finish', async (data, ack) => {
+      try {
+        const result = await finishPlayer(data?.battleId, userId);
+        if (typeof ack === 'function') ack(result);
       } catch (err) {
         if (typeof ack === 'function') ack({ success: false, message: err.message });
       }

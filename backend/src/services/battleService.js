@@ -3,6 +3,9 @@ const Problem = require('../models/Problem');
 const Submission = require('../models/Submission');
 const User = require('../models/User');
 const redis = require('../config/redis');
+const { runSubmission } = require('./codeRunnerService');
+const { analyzeSolution } = require('./analysisService');
+const { computeResult } = require('../config/scoring');
 const { getTier } = require('../utils/tier');
 
 const QUEUE_KEY = 'matchmaking:queue:ranked_1v1';
@@ -41,6 +44,7 @@ const cleanProblem = (problem) => {
   if (!problem) return null;
   const p = problem.toObject ? problem.toObject() : { ...problem };
   delete p.hiddenTestCases;
+  delete p.stressTest;
   return p;
 };
 
@@ -91,6 +95,8 @@ const formatBattleState = async (battle, userId) => {
       battleId: String(battle._id),
       status: battle.status,
       serverNow: Date.now(),
+      ownFinished: !!me?.finishedAt,
+      opponentFinished: !!opp?.finishedAt,
       acceptDeadline: toTimeMs(battle.acceptDeadline),
       opponent,
       players,
@@ -119,6 +125,8 @@ const formatBattleState = async (battle, userId) => {
     battleId: String(battle._id),
     status: battle.status,
     serverNow: Date.now(),
+    ownFinished: !!me?.finishedAt,
+    opponentFinished: !!opp?.finishedAt,
     startedAt: toTimeMs(battle.startedAt),
     endsAt: toTimeMs(battle.endsAt),
     opponent,
@@ -145,7 +153,7 @@ const formatBattleState = async (battle, userId) => {
   return base;
 };
 
-const formatBattleEndShape = (battle) => {
+const formatBattleEndShape = (battle, userId) => {
   const startedTime = battle.startedAt ? toTimeMs(battle.startedAt) : null;
   const p0 = battle.players[0];
   const p1 = battle.players[1];
@@ -164,6 +172,13 @@ const formatBattleEndShape = (battle) => {
     ratingAfter: player ? player.ratingAfter : null,
     ratingDelta: player ? player.ratingDelta : null,
     xpGained: player ? player.xpGained : 0,
+    scores: player?.scores || null,
+    timeComplexity: player?.analysis?.timeComplexity || null,
+    spaceComplexity: player?.analysis?.spaceComplexity || null,
+    quality: player?.analysis?.quality || null,
+    finishedBy: player?.finishedBy || null,
+    resultSource: player?.resultSource || 'none',
+    ...(getUserId(player?.user) === String(userId) ? { myTests: player.myTests || [], feedback: player.analysis?.feedback || [] } : {}),
   });
 
   return {
@@ -176,6 +191,8 @@ const formatBattleEndShape = (battle) => {
       slug: battle.problem.slug,
       difficulty: battle.problem.difficulty,
       category: battle.problem.category,
+      optimalTime: battle.problem.optimalTime || null,
+      optimalSpace: battle.problem.optimalSpace || null,
     } : null,
     players: [formatPlayer(p0, u0), formatPlayer(p1, u1)],
     timeline: (battle.timeline || []).map((t) => ({
@@ -200,7 +217,7 @@ const enqueuePlayer = async (userId, mode = 'ranked_1v1') => {
 
   const inBattle = await Battle.findOne({
     'players.user': userId,
-    status: { $in: ['pending', 'active'] },
+    status: { $in: ['pending', 'active', 'finalizing'] },
   });
   if (inBattle) {
     return { success: false, message: 'Already in a battle' };
@@ -442,7 +459,7 @@ const startBattle = async (battleId) => {
   const endsAt = new Date(Date.now() + duration * 1000);
   const battle = await Battle.findOneAndUpdate(
     { _id: battleId, status: 'pending' },
-    { status: 'active', startedAt, endsAt },
+    { status: 'active', startedAt, endsAt, battleDurationMs: duration * 1000 },
     { new: true }
   ).populate('problem players.user');
   if (!battle) return;
@@ -454,9 +471,7 @@ const startBattle = async (battleId) => {
   });
   await battle.save();
 
-  battleTimers[battle._id] = setTimeout(() => {
-    onBattleTimeUp(battle._id);
-  }, duration * 1000);
+  armBattleTimer(battle);
 
   const cleanProb = cleanProblem(battle.problem);
   const p0 = battle.players[0].user;
@@ -493,33 +508,141 @@ const startBattle = async (battleId) => {
   });
 };
 
-const onBattleTimeUp = async (battleId) => {
-  const battle = await Battle.findById(battleId);
-  if (!battle || battle.status !== 'active') return;
-
-  const p0 = battle.players[0];
-  const p1 = battle.players[1];
-  let winner = null;
-  let reason = 'draw';
-
-  if (p0.bestPassed > p1.bestPassed) {
-    winner = p0.user;
-    reason = 'time';
-  } else if (p1.bestPassed > p0.bestPassed) {
-    winner = p1.user;
-    reason = 'time';
-  }
-
-  await finishBattle(battleId, winner, reason);
+const armBattleTimer = (battle) => {
+  clearTimeout(battleTimers[battle._id]);
+  battleTimers[battle._id] = setTimeout(() => {
+    finishBattle(battle._id, null, 'time').catch(() => {});
+  }, Math.max(0, new Date(battle.endsAt).getTime() - Date.now()));
 };
 
-const finishBattle = async (battleId, winnerId, reason) => {
+const onBattleTimeUp = (battleId) => finishBattle(battleId, null, 'time');
+
+const saveDraft = async (battleId, userId, language, code) => {
+  if (!['javascript', 'python', 'cpp', 'java'].includes(language) || typeof code !== 'string' || code.length > 20000) {
+    return { success: false, message: 'Invalid language or code (maximum 20000 characters)' };
+  }
+  const battle = await Battle.findById(battleId);
+  const player = battle?.players.find((p) => getUserId(p.user) === String(userId));
+  if (!player) return { success: false, message: 'Not a participant' };
+  if (battle.status !== 'active' || player.finishedAt || player.finishing || Date.now() >= new Date(battle.endsAt).getTime()) return { success: false, message: 'Coding is locked or time expired' };
+  const allowed = await redis.set(`ratelimit:draft:${userId}`, '1', 'EX', 2, 'NX');
+  if (!allowed) return { success: false, message: 'Maximum one draft per 2 seconds' };
+  await redis.set(`draft:${battleId}:${userId}`, JSON.stringify({ language, code, at: Date.now() }), 'EX', 3600);
+  return { success: true, message: 'Draft saved' };
+};
+
+const evaluateCode = async (problem, language, code) => {
+  const tests = [...(problem.sampleTestCases || []), ...(problem.hiddenTestCases || [])];
+  const result = code ? await runSubmission({ language, code, testCases: tests, timeLimitMs: problem.timeLimitMs, memoryLimitMb: problem.memoryLimitMb }) : { passedCount: 0, totalCount: tests.length, status: 'no_code', testResults: [] };
+  const myTests = tests.map((test, index) => {
+    const row = result.testResults?.[index];
+    const status = row?.status || (row?.passed ? 'accepted' : result.status === 'accepted' ? 'wrong_answer' : result.status);
+    return { index, passed: !!row?.passed, status, timeMs: row?.timeMs || 0, ...((row?.error || result.error) ? { error: String(row?.error || result.error).slice(0, 500) } : {}), ...(index < problem.sampleTestCases.length ? { input: test.input, expected: test.expectedOutput, actual: row?.output || '' } : {}) };
+  });
+  return { result, myTests, runtimeMs: myTests.reduce((sum, test) => sum + test.timeMs, 0) };
+};
+
+const finishPlayer = async (battleId, userId, submission) => {
+  const battle = await Battle.findById(battleId).select('+players.finalCode');
+  const player = battle?.players.find((p) => getUserId(p.user) === String(userId));
+  if (!player) return { success: false, message: 'Not a participant' };
+  if (battle.status !== 'active' || player.finishedAt || player.finishing || Date.now() >= new Date(battle.endsAt).getTime()) return { success: false, message: 'Coding is locked or time expired' };
+  let source = submission;
+  if (!source) {
+    const draft = await redis.get(`draft:${battleId}:${userId}`);
+    const saved = draft ? JSON.parse(draft) : null;
+    source = saved && saved.at > (toTimeMs(player.codeUpdatedAt) || 0) ? saved : { language: player.language, code: player.finalCode || '' };
+  }
+  if (typeof source.code !== 'string' || source.code.length > 20000 || (source.code && !['javascript', 'python', 'cpp', 'java'].includes(source.language))) return { success: false, message: 'Invalid language or code' };
+  const claimed = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, finishedAt: null, finishing: { $ne: true } } } }, { $set: { 'players.$.finishing': true, 'players.$.finalCode': source.code, 'players.$.language': source.language, 'players.$.codeUpdatedAt': new Date() } });
+  if (!claimed) return { success: false, message: 'Coding is locked' };
+  try {
+    const problem = await Problem.findById(battle.problem).select('+hiddenTestCases');
+    const { result, myTests, runtimeMs } = await evaluateCode(problem, source.language, source.code);
+    if (submission) await Submission.create({ user: userId, problem: problem._id, battle: battleId, language: source.language, code: source.code, status: result.status, error: result.error || '', testResults: myTests.map((test) => ({ passed: test.passed, timeMs: test.timeMs, output: test.actual || '', expected: test.expected || '' })), passedCount: result.passedCount, totalCount: result.totalCount, executionTimeMs: runtimeMs });
+    const solved = result.totalCount > 0 && result.passedCount === result.totalCount && result.status === 'accepted';
+    const finished = solved || !submission;
+    const now = new Date();
+    const values = { battleDurationMs: battle.battleDurationMs || new Date(battle.endsAt) - new Date(battle.startedAt), 'players.$.finishing': false, 'players.$.bestPassed': result.passedCount, 'players.$.totalTests': result.totalCount, 'players.$.runtimeMs': runtimeMs, 'players.$.myTests': myTests, 'players.$.lastSubmissionAt': now, 'players.$.resultSource': source.code ? (submission ? 'submit' : 'auto_draft') : 'none' };
+    if (finished) Object.assign(values, { 'players.$.finishedAt': now, 'players.$.finishedBy': solved ? 'solved' : 'locked', 'players.$.solvedAt': solved ? now : null });
+    const fresh = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', 'players.user': userId }, { ...(finished ? { $min: { endsAt: new Date(Date.now() + (Number(process.env.AFTER_FIRST_FINISH_SECONDS) || 180) * 1000) } } : {}), $set: values, $push: { timeline: { user: userId, passedCount: result.passedCount, totalCount: result.totalCount, at: now } } }, { new: true });
+    if (!fresh) return { success: false, message: 'Battle is finalizing' };
+    const opponent = fresh.players.find((p) => getUserId(p.user) !== String(userId));
+    const progress = { status: result.status, passedCount: result.passedCount, totalCount: result.totalCount, timeMs: runtimeMs };
+    ioInstance?.to(`user:${userId}`).emit('submission_result', progress);
+    ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_progress', { passedCount: result.passedCount, totalCount: result.totalCount, at: now });
+    if (finished) {
+      armBattleTimer(fresh);
+      const payload = { endsAt: fresh.endsAt, serverNow: Date.now(), passedCount: result.passedCount, totalCount: result.totalCount };
+      ioInstance?.to(`user:${userId}`).emit('you_finished', payload);
+      ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_finished', { ...payload, solveTimeMs: solved ? now - new Date(battle.startedAt) : null });
+      if (fresh.players.every((p) => p.finishedAt)) await finishBattle(battleId, null, 'time');
+    }
+    return { success: true, message: finished ? 'Solution locked' : 'Submission evaluated', data: progress };
+  } catch (err) {
+    await Battle.updateOne({ _id: battleId, status: 'active', 'players.user': userId }, { $set: { 'players.$.finishing': false } });
+    throw err;
+  }
+};
+
+const finishBattle = async (battleId, winnerId, reason = 'time', recover = false) => {
   const battle = await Battle.findOneAndUpdate(
-    { _id: battleId, status: 'active' },
-    { status: 'finished', winner: winnerId || null, reason },
+    { _id: battleId, status: recover ? 'finalizing' : 'active' },
+    { status: 'finalizing', ...(recover ? {} : { winner: winnerId || null, reason }) },
     { new: true }
-  ).populate('players.user problem');
+  ).select('+players.finalCode +players.myTests').populate('players.user problem');
   if (!battle) return;
+  winnerId = battle.winner;
+  reason = battle.reason;
+  for (const player of battle.players) ioInstance?.to(`user:${getUserId(player.user)}`).emit('battle_finalizing', {});
+  const forced = reason === 'forfeit' || reason === 'disconnect';
+  if (!recover || !battle.players.every((player) => player.ratingAfter != null)) {
+    const problem = await Problem.findById(battle.problem._id).select('+hiddenTestCases');
+    for (const player of battle.players) {
+      if (!player.finishedAt && !forced) {
+        try {
+          const raw = await redis.get(`draft:${battleId}:${getUserId(player.user)}`);
+          const saved = raw ? JSON.parse(raw) : null;
+          const draft = saved && saved.at > (toTimeMs(player.codeUpdatedAt) || 0) ? saved : { code: player.finalCode || '', language: player.language };
+          const evaluated = await evaluateCode(problem, draft.language, draft.code);
+          player.finalCode = draft.code;
+          player.language = draft.language;
+          player.bestPassed = evaluated.result.passedCount;
+          player.totalTests = evaluated.result.totalCount;
+          player.runtimeMs = evaluated.runtimeMs;
+          player.myTests = evaluated.myTests;
+          player.resultSource = draft.code ? 'auto_draft' : 'none';
+          if (evaluated.result.status === 'accepted') player.solvedAt = new Date(battle.endsAt);
+        } catch {
+          player.bestPassed = 0;
+          player.runtimeMs = 0;
+          player.myTests = [];
+          player.resultSource = 'none';
+        }
+      }
+      if (!player.finishedAt) {
+        player.finishedAt = new Date();
+        player.finishedBy = forced ? 'forfeit' : 'timeout';
+      }
+      player.finishing = false;
+    }
+    let timer;
+    const analyses = forced ? [] : await Promise.race([
+      Promise.allSettled(battle.players.map((p) => analyzeSolution({ problem, language: p.language, code: p.finalCode }))),
+      new Promise((resolve) => { timer = setTimeout(() => resolve([]), (Number(process.env.LLM_TIMEOUT_MS) || 20000) + 5000); }),
+    ]);
+    clearTimeout(timer);
+    battle.players.forEach((p, index) => { p.analysis = analyses[index]?.status === 'fulfilled' ? analyses[index].value : null; });
+    const computed = computeResult(battle);
+    battle.players.forEach((p, index) => { p.scores = computed.scores[index]; });
+    if (!forced) {
+      winnerId = computed.winner;
+      reason = computed.reason;
+      battle.winner = winnerId;
+      battle.reason = reason;
+    }
+    await battle.save();
+  }
 
   if (battleTimers[battle._id]) {
     clearTimeout(battleTimers[battle._id]);
@@ -574,36 +697,25 @@ const finishBattle = async (battleId, winnerId, reason) => {
   p1.ratingDelta = delta1;
   p1.xpGained = xp1;
 
-  const u0 = await User.findById(p0Id);
-  if (u0) {
-    u0.rating = newR0;
-    u0.xp = (u0.xp || 0) + xp0;
-    u0.stats.wins = (u0.stats.wins || 0) + (s0 === 1 ? 1 : 0);
-    u0.stats.losses = (u0.stats.losses || 0) + (s0 === 0 ? 1 : 0);
-    u0.stats.draws = (u0.stats.draws || 0) + (s0 === 0.5 ? 1 : 0);
-    u0.stats.streak = s0 === 1 ? (u0.stats.streak || 0) + 1 : s0 === 0 ? 0 : u0.stats.streak || 0;
-    u0.stats.peakRating = Math.max(u0.stats.peakRating || 1200, newR0);
-    await u0.save();
-  }
-
-  const u1 = await User.findById(p1Id);
-  if (u1) {
-    u1.rating = newR1;
-    u1.xp = (u1.xp || 0) + xp1;
-    u1.stats.wins = (u1.stats.wins || 0) + (s1 === 1 ? 1 : 0);
-    u1.stats.losses = (u1.stats.losses || 0) + (s1 === 0 ? 1 : 0);
-    u1.stats.draws = (u1.stats.draws || 0) + (s1 === 0.5 ? 1 : 0);
-    u1.stats.streak = s1 === 1 ? (u1.stats.streak || 0) + 1 : s1 === 0 ? 0 : u1.stats.streak || 0;
-    u1.stats.peakRating = Math.max(u1.stats.peakRating || 1200, newR1);
-    await u1.save();
-  }
-
   await battle.save();
-
-  const payload = formatBattleEndShape(battle);
-
-  ioInstance?.to(`user:${p0Id}`).emit('battle_end', payload);
-  ioInstance?.to(`user:${p1Id}`).emit('battle_end', payload);
+  for (const [player, score, rating, xp] of [[p0, s0, newR0, xp0], [p1, s1, newR1, xp1]]) {
+    const battleKey = String(battle._id);
+    const add = (field, amount) => ({ $add: [{ $ifNull: [`$${field}`, 0] }, amount] });
+    await User.collection.updateOne({ _id: player.user._id, appliedBattleResults: { $ne: battleKey } }, [{ $set: {
+      rating,
+      xp: add('xp', xp),
+      'stats.wins': add('stats.wins', score === 1 ? 1 : 0),
+      'stats.losses': add('stats.losses', score === 0 ? 1 : 0),
+      'stats.draws': add('stats.draws', score === 0.5 ? 1 : 0),
+      'stats.streak': score === 1 ? add('stats.streak', 1) : score === 0 ? 0 : { $ifNull: ['$stats.streak', 0] },
+      'stats.peakRating': { $max: [{ $ifNull: ['$stats.peakRating', 1200] }, rating] },
+      appliedBattleResults: { $concatArrays: [{ $ifNull: ['$appliedBattleResults', []] }, [battleKey]] },
+    } }]);
+  }
+  battle.status = 'finished';
+  await battle.save();
+  ioInstance?.to(`user:${p0Id}`).emit('battle_end', formatBattleEndShape(battle, p0Id));
+  ioInstance?.to(`user:${p1Id}`).emit('battle_end', formatBattleEndShape(battle, p1Id));
 };
 
 const forfeitBattle = async (battleId, userId) => {
@@ -852,15 +964,16 @@ const initBattleEngine = async (io) => {
   queueStatusInterval = setInterval(broadcastQueueStatus, 3000);
 
   const now = Date.now();
+  const stuck = await Battle.find({ status: 'finalizing' });
+  for (const battle of stuck) await finishBattle(battle._id, null, 'time', true);
+  await Battle.updateMany({ status: 'active' }, { $set: { 'players.$[].finishing': false } });
   const activeBattles = await Battle.find({ status: 'active' });
   for (const b of activeBattles) {
     const rem = new Date(b.endsAt).getTime() - now;
-    if (rem <= 0) {
+    if (rem <= 0 || b.players.every((player) => player.finishedAt)) {
       await onBattleTimeUp(b._id);
     } else {
-      battleTimers[b._id] = setTimeout(() => {
-        onBattleTimeUp(b._id);
-      }, rem);
+      armBattleTimer(b);
     }
   }
 
@@ -890,6 +1003,8 @@ module.exports = {
   getBattleState,
   handleChatMessage,
   finishBattle,
+  finishPlayer,
+  saveDraft,
   getArenaStats,
   formatBattleState,
   formatBattleEndShape,

@@ -73,6 +73,9 @@ const problemSchema = new mongoose.Schema(
         default: '',
       },
     },
+    optimalTime: String,
+    optimalSpace: String,
+    stressTest: { input: String },
     timeLimitMs: {
       type: Number,
       default: 2000,

@@ -1,293 +1,162 @@
-const { io } = require('socket.io-client');
-const User = require('../src/models/User');
+require('dotenv').config({ path: `${__dirname}/../.env` });
+process.env.LLM_MOCK = 'true';
+process.env.BATTLE_DURATION_SECONDS = '20';
+process.env.AFTER_FIRST_FINISH_SECONDS = '2';
+process.env.JWT_ACCESS_SECRET ||= 'codingarena-local-simulator';
+
+const mongoose = require('mongoose');
+const express = require('express');
+const http = require('http');
+const jwt = require('jsonwebtoken');
+const { io: connect } = require('socket.io-client');
 const Battle = require('../src/models/Battle');
-const Submission = require('../src/models/Submission');
+const Problem = require('../src/models/Problem');
+const User = require('../src/models/User');
 const redis = require('../src/config/redis');
-const connectDB = require('../src/config/db');
-
-const API_URL = process.env.SERVER_URL || 'http://localhost:5000';
-
-const loginOrRegister = async (username, email, password) => {
-  const loginRes = await fetch(`${API_URL}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ identifier: email, password }),
-  });
-
-  const loginData = await loginRes.json();
-  if (loginRes.ok && loginData.data?.accessToken) {
-    return { token: loginData.data.accessToken, user: loginData.data.user };
+const analysisService = require('../src/services/analysisService');
+const originalAnalysis = analysisService.analyzeSolution;
+let failCode = null;
+analysisService.analyzeSolution = (args) => args.code === failCode ? Promise.resolve(null) : originalAnalysis(args);
+const { initSocket } = require('../src/sockets');
+const { submitBattleCode, getBattleById } = require('../src/controllers/battleController');
+const { finishBattle } = require('../src/services/battleService');
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const code = "const t=require('fs').readFileSync(0,'utf8').trim().split(/\\s+/).map(Number);const n=t[0],target=t[1],seen=new Map();for(let i=0;i<n;i++){let x=t[i+2];if(seen.has(target-x)){console.log(seen.get(target-x),i);break;}seen.set(x,i);}";
+let server;
+let io;
+let base;
+let problem;
+let sequence = 0;
+const sockets = [];
+const requirePass = (value, message) => { if (!value) throw new Error(message); };
+const ack = (socket, event, data) => new Promise((resolve, reject) => socket.timeout(20000).emit(event, data, (err, result) => err ? reject(err) : resolve(result)));
+const waitFor = async (predicate, ms = 25000) => {
+  const until = Date.now() + ms;
+  while (!predicate()) {
+    if (Date.now() >= until) throw new Error('Scenario timed out');
+    await delay(50);
   }
-
-  const regRes = await fetch(`${API_URL}/api/v1/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, email, password }),
-  });
-
-  const regData = await regRes.json();
-  if (regRes.ok && regData.data?.accessToken) {
-    return { token: regData.data.accessToken, user: regData.data.user };
-  }
-
-  throw new Error(regData.message || loginData.message || 'Auth failed');
 };
 
-const connectPlayerSocket = (token) => {
-  return new Promise((resolve, reject) => {
-    const s = io(API_URL, { auth: { token }, reconnection: false });
-    s.on('connect', () => resolve(s));
-    s.on('connect_error', reject);
-  });
+const makeBattle = async () => {
+  const users = [];
+  const clients = [];
+  const tokens = [];
+  const events = [[], []];
+  const finalizing = [0, 0];
+  for (let index = 0; index < 2; index++) {
+    const _id = new mongoose.Types.ObjectId();
+    const username = `sim_${++sequence}`;
+    await User.collection.insertOne({ _id, username, email: `${username}@example.com`, rating: 1200, xp: 0, stats: { wins: 0, losses: 0, draws: 0, streak: 0, peakRating: 1200 } });
+    users.push(_id);
+    const token = jwt.sign({ userId: String(_id) }, process.env.JWT_ACCESS_SECRET);
+    tokens.push(token);
+    const socket = connect(base, { auth: { token }, reconnection: false });
+    sockets.push(socket);
+    await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('connect_error', reject); });
+    socket.on('battle_end', (payload) => events[index].push(payload));
+    socket.on('battle_finalizing', () => { finalizing[index]++; });
+    clients.push(socket);
+  }
+  const battle = await Battle.create({ players: users.map((user) => ({ user, ratingBefore: 1200, totalTests: 3, response: 'accepted' })), problem: problem._id, status: 'active', startedAt: new Date(), endsAt: new Date(Date.now() + 20000), battleDurationMs: 20000 });
+  return { battle, users, clients, tokens, events, finalizing };
 };
 
-const cleanupSimData = async () => {
-  await connectDB();
-  const users = await User.find({ username: /^sim_/ });
-  const userIds = users.map((u) => u._id);
-  const userStrIds = users.map((u) => String(u._id));
-
-  if (userIds.length > 0) {
-    const subRes = await Submission.deleteMany({ user: { $in: userIds } });
-    const batRes = await Battle.deleteMany({ 'players.user': { $in: userIds } });
-    const usrRes = await User.deleteMany({ _id: { $in: userIds } });
-    console.log(`[SIM-CLEANUP] Deleted ${usrRes.deletedCount} users, ${batRes.deletedCount} battles, ${subRes.deletedCount} submissions.`);
-  }
-
-  for (const id of userStrIds) {
-    await redis.zrem('matchmaking:queue:ranked_1v1', id);
-    await redis.hdel('matchmaking:times', id);
-    await redis.del(`cooldown:${id}`);
-    await redis.del(`user:connections:${id}`);
-    await redis.del(`ratelimit:submission:${id}`);
-  }
-
-  const allCooldowns = await redis.keys('cooldown:*');
-  for (const k of allCooldowns) {
-    await redis.del(k);
-  }
-
-  const chatKeys = await redis.keys('battle:chat:*');
-  for (const k of chatKeys) {
-    await redis.del(k);
-  }
-  console.log('[SIM-CLEANUP] Redis queues and cooldowns cleared.');
+const submit = async (ctx, index, source = code) => {
+  const response = await fetch(`${base}/battles/${ctx.battle._id}/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.tokens[index]}` }, body: JSON.stringify({ language: 'javascript', code: source }) });
+  const body = await response.json();
+  requirePass(response.ok && body.success, body.message || 'Submission failed');
+  requirePass(body.data.status === 'accepted', `Runner failed: ${JSON.stringify(body)}`);
 };
 
-const runDoubleSubmitScenario = async () => {
-  console.log('\n--- Scenario 1: Double Submit ---');
-  const p1 = await loginOrRegister('sim_rival_one', 'sim_one@example.com', 'Pass123456!');
-  const p2 = await loginOrRegister('sim_rival_two', 'sim_two@example.com', 'Pass123456!');
-
-  const u1Before = await User.findById(p1.user._id);
-  const u2Before = await User.findById(p2.user._id);
-
-  const s1 = await connectPlayerSocket(p1.token);
-  const s2 = await connectPlayerSocket(p2.token);
-
-  let s1EndCount = 0;
-  let s2EndCount = 0;
-  let endPayload = null;
-
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Double-submit timeout')), 20000);
-
-    s1.once('match_found', (data) => {
-      s1.emit('match_accept', { battleId: data.battleId });
-    });
-    s2.once('match_found', (data) => {
-      s2.emit('match_accept', { battleId: data.battleId });
-    });
-
-    const submitSolution = async (battleId, problem) => {
-      const code = problem.starterCode?.javascript || problem.starterCode?.python;
-      const lang = problem.starterCode?.javascript ? 'javascript' : 'python';
-      await Promise.all([
-        fetch(`${API_URL}/api/v1/battles/${battleId}/submit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${p1.token}` },
-          body: JSON.stringify({ language: lang, code }),
-        }),
-        fetch(`${API_URL}/api/v1/battles/${battleId}/submit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${p2.token}` },
-          body: JSON.stringify({ language: lang, code }),
-        }),
-      ]);
-    };
-
-    let started = false;
-    const onStart = (data) => {
-      if (started) return;
-      started = true;
-      setTimeout(() => {
-        submitSolution(data.battleId, data.problem);
-      }, 500);
-    };
-
-    s1.once('battle_start', onStart);
-    s2.once('battle_start', onStart);
-
-    s1.on('battle_end', (data) => {
-      s1EndCount++;
-      endPayload = data;
-    });
-
-    s2.on('battle_end', () => {
-      s2EndCount++;
-      setTimeout(() => {
-        clearTimeout(timer);
-        resolve();
-      }, 1000);
-    });
-
-    s1.emit('queue_join', { mode: 'ranked_1v1' });
-    s2.emit('queue_join', { mode: 'ranked_1v1' });
-  });
-
-  const battleDoc = await Battle.findById(endPayload.battleId);
-  const u1After = await User.findById(p1.user._id);
-  const u2After = await User.findById(p2.user._id);
-
-  const passedOnce = s1EndCount === 1 && s2EndCount === 1;
-  const singleWinner = battleDoc.status === 'finished' && Boolean(battleDoc.winner);
-  const rating1Changed = u1After.rating !== u1Before.rating;
-  const rating2Changed = u2After.rating !== u2Before.rating;
-  const hasUserIds = endPayload.players.every((p) => typeof p.userId === 'string' && p.userId.length > 0);
-  const hasRuntime = endPayload.players.some((p) => typeof p.runtimeMs === 'number');
-
-  s1.disconnect();
-  s2.disconnect();
-
-  if (!passedOnce || !singleWinner || !rating1Changed || !rating2Changed || !hasUserIds) {
-    throw new Error(`Double-submit assertion failed: s1Ends=${s1EndCount}, s2Ends=${s2EndCount}, winner=${battleDoc.winner}, r1Changed=${rating1Changed}, r2Changed=${rating2Changed}`);
-  }
-
-  console.log(`[PASS] Double-submit scenario: S1 ends: ${s1EndCount}, S2 ends: ${s2EndCount}, Winner: ${battleDoc.winner}, R1: ${u1Before.rating}->${u1After.rating}, R2: ${u2Before.rating}->${u2After.rating}, runtimeMs verified: ${hasRuntime}.`);
+const completed = async (ctx) => {
+  await waitFor(() => ctx.events[0].length && ctx.events[1].length);
+  await delay(200);
+  requirePass(ctx.events.every((events) => events.length === 1), 'Duplicate battle_end');
+  requirePass(ctx.finalizing.every((count) => count === 1), 'Duplicate finalization');
+  requirePass(ctx.events[0][0].players.every((p) => typeof p.scores?.total === 'number' && p.scores.interview === null), 'Missing scores');
+  requirePass(!('myTests' in ctx.events[0][0].players[1]) && !('myTests' in ctx.events[1][0].players[0]), 'Opponent tests leaked');
+  ctx.clients.forEach((socket) => socket.disconnect());
 };
 
-const runDeclineScenario = async () => {
-  console.log('\n--- Scenario 2: Decline Match ---');
-  const p1 = await loginOrRegister('sim_decline_one', 'sim_dec_one@example.com', 'Pass123456!');
-  const p2 = await loginOrRegister('sim_decline_two', 'sim_dec_two@example.com', 'Pass123456!');
+const scenarios = async () => {
+  let ctx = await makeBattle();
+  await submit(ctx, 0);
+  requirePass(ctx.events[0].length === 0, 'First finisher ended battle');
+  const locked = await ack(ctx.clients[0], 'battle_finish', { battleId: String(ctx.battle._id) });
+  requirePass(!locked.success, 'Finished player was not locked');
+  await submit(ctx, 1);
+  await completed(ctx);
+  console.log('PASS first-finisher: both solved, one battle_end per player, scores present');
 
-  const s1 = await connectPlayerSocket(p1.token);
-  const s2 = await connectPlayerSocket(p2.token);
+  ctx = await makeBattle();
+  const draft = await ack(ctx.clients[1], 'code_draft', { battleId: String(ctx.battle._id), language: 'javascript', code });
+  requirePass(draft.success, draft.message);
+  await submit(ctx, 0);
+  const shortened = await Battle.findById(ctx.battle._id);
+  requirePass(new Date(shortened.endsAt) - Date.now() <= 2100, 'Deadline not shortened');
+  await completed(ctx);
+  const own = ctx.events[1][0].players[1];
+  requirePass(own.resultSource === 'auto_draft' && own.myTests.length === 3, 'Draft not evaluated');
+  requirePass(!('input' in own.myTests[2]) && !('expected' in own.myTests[2]) && !('actual' in own.myTests[2]), 'Hidden test leaked');
+  const details = await fetch(`${base}/battles/${ctx.battle._id}`, { headers: { Authorization: `Bearer ${ctx.tokens[1]}` } }).then((res) => res.json());
+  requirePass(details.data.players[1].myTests.length === 3 && !('myTests' in details.data.players[0]), 'GET privacy mismatch');
+  console.log('PASS draft-autoeval: shortened deadline, auto_draft, own tests, hidden data redacted');
 
-  let s1Cancelled = null;
-  let s2Cancelled = null;
-
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Decline scenario timeout')), 15000);
-
-    s1.once('match_found', (data) => {
-      s1.emit('match_accept', { battleId: data.battleId });
-    });
-    s2.once('match_found', (data) => {
-      s2.emit('match_decline', { battleId: data.battleId });
-    });
-
-    s1.once('match_cancelled', (data) => {
-      s1Cancelled = data;
-      s1.emit('queue_leave', () => {});
-    });
-
-    s2.once('match_cancelled', (data) => {
-      s2Cancelled = data;
-      setTimeout(() => {
-        clearTimeout(timer);
-        resolve();
-      }, 500);
-    });
-
-    s1.emit('queue_join', { mode: 'ranked_1v1' });
-    s2.emit('queue_join', { mode: 'ranked_1v1' });
-  });
-
-  const cooldown = await redis.get(`cooldown:${p2.user._id}`);
-
-  s1.disconnect();
-  s2.disconnect();
-
-  await redis.zrem('matchmaking:queue:ranked_1v1', String(p1.user._id), String(p2.user._id));
-  await redis.hdel('matchmaking:times', String(p1.user._id), String(p2.user._id));
-
-  if (s1Cancelled?.reason !== 'declined' || s2Cancelled?.reason !== 'declined' || !cooldown) {
-    throw new Error('Decline assertion failed');
+  ctx = await makeBattle();
+  await Promise.all(ctx.clients.map((socket) => ack(socket, 'code_draft', { battleId: String(ctx.battle._id), language: 'javascript', code }).then((result) => requirePass(result.success, result.message))));
+  const finishes = await Promise.all(ctx.clients.map((socket) => ack(socket, 'battle_finish', { battleId: String(ctx.battle._id) })));
+  requirePass(finishes.every((result) => result.success), 'Double finish failed');
+  await Promise.all([finishBattle(ctx.battle._id), finishBattle(ctx.battle._id)]);
+  await completed(ctx);
+  for (const id of ctx.users) {
+    const user = await User.collection.findOne({ _id: id });
+    requirePass(user.stats.wins + user.stats.losses + user.stats.draws === 1, 'Ratings or stats applied more than once');
+    requirePass(user.appliedBattleResults.length === 1, 'Duplicate rating marker');
+    const result = ctx.events[0][0].players.find((player) => player.userId === String(id));
+    requirePass(user.xp === result.xpGained && user.rating === result.ratingAfter, 'Rating or XP mismatch');
   }
+  console.log('PASS double-finish: one finalization, one battle_end per player, ratings and XP once');
 
-  console.log('[PASS] Decline scenario: match_cancelled received by both with reason "declined", cooldown key confirmed.');
-};
-
-const runForfeitScenario = async () => {
-  console.log('\n--- Scenario 3: Forfeit Battle ---');
-  const p1 = await loginOrRegister('sim_forfeit_one', 'sim_forf_one@example.com', 'Pass123456!');
-  const p2 = await loginOrRegister('sim_forfeit_two', 'sim_forf_two@example.com', 'Pass123456!');
-
-  const s1 = await connectPlayerSocket(p1.token);
-  const s2 = await connectPlayerSocket(p2.token);
-
-  let endData = null;
-
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Forfeit scenario timeout')), 15000);
-
-    s1.once('match_found', (data) => {
-      s1.emit('match_accept', { battleId: data.battleId });
-    });
-    s2.once('match_found', (data) => {
-      s2.emit('match_accept', { battleId: data.battleId });
-    });
-
-    s1.once('battle_start', (data) => {
-      setTimeout(() => {
-        s1.emit('battle_forfeit', { battleId: data.battleId });
-      }, 500);
-    });
-
-    s2.once('battle_end', (data) => {
-      endData = data;
-      setTimeout(() => {
-        clearTimeout(timer);
-        resolve();
-      }, 500);
-    });
-
-    s1.emit('queue_join', { mode: 'ranked_1v1' });
-    s2.emit('queue_join', { mode: 'ranked_1v1' });
-  });
-
-  s1.disconnect();
-  s2.disconnect();
-
-  await redis.zrem('matchmaking:queue:ranked_1v1', String(p1.user._id), String(p2.user._id));
-  await redis.hdel('matchmaking:times', String(p1.user._id), String(p2.user._id));
-
-  if (endData?.reason !== 'forfeit' || endData?.winner !== String(p2.user._id)) {
-    throw new Error(`Forfeit assertion failed: reason=${endData?.reason}, winner=${endData?.winner}`);
-  }
-
-  console.log(`[PASS] Forfeit scenario: Battle ended with reason "forfeit", winner correctly set to opponent (${p2.user.username}).`);
+  ctx = await makeBattle();
+  failCode = `${code}\n`;
+  await Promise.all([submit(ctx, 0), submit(ctx, 1, failCode)]);
+  await completed(ctx);
+  requirePass(ctx.events[0][0].players.every((p) => ['timeComplexity', 'spaceComplexity', 'quality', 'interview'].every((key) => p.scores[key] === null)), 'Unavailable components not null for both');
+  failCode = null;
+  console.log('PASS analysis-failure: one player analysis failed, both analysis components null, battle finished');
 };
 
 const run = async () => {
-  await connectDB();
-
-  if (process.argv.includes('--cleanup')) {
-    await cleanupSimData();
-    process.exit(0);
-  }
-
-  await cleanupSimData();
-  await runDoubleSubmitScenario();
-  await runDeclineScenario();
-  await runForfeitScenario();
-
-  console.log('\n[SIM] All simulation scenarios completed successfully.');
-  process.exit(0);
+  const uri = new URL(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/codingarena');
+  uri.pathname = `/codingarena_sim_${Date.now()}`;
+  redis.options.keyPrefix = `sim:${Date.now()}:`;
+  await mongoose.connect(uri.toString(), { serverSelectionTimeoutMS: 5000 });
+  problem = await Problem.create({ title: 'Two Sum', slug: 'two-sum', description: 'Print indices of two values summing to target.', difficulty: 'easy', optimalTime: 'O(n)', optimalSpace: 'O(n)', timeLimitMs: 2000, sampleTestCases: [{ input: '4 9\n2 7 11 15\n', expectedOutput: '0 1' }, { input: '3 6\n3 2 4\n', expectedOutput: '1 2' }], hiddenTestCases: [{ input: '2 6\n3 3\n', expectedOutput: '0 1' }] });
+  const app = express();
+  app.use(express.json());
+  app.use(async (req, res, next) => {
+    try { req.user = await User.findById(jwt.verify(req.headers.authorization?.slice(7), process.env.JWT_ACCESS_SECRET).userId); next(); } catch { res.status(401).json({ message: 'Unauthorized' }); }
+  });
+  app.post('/battles/:id/submit', submitBattleCode);
+  app.get('/battles/:id', getBattleById);
+  server = http.createServer(app);
+  io = initSocket(server);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  base = `http://127.0.0.1:${server.address().port}`;
+  await scenarios();
 };
 
-run().catch((err) => {
-  console.error('[SIM] Error:', err);
-  process.exit(1);
+run().then(() => console.log('PASS all battle scenarios')).catch((err) => { console.error(`FAIL ${err.message}`); process.exitCode = 1; }).finally(async () => {
+  sockets.forEach((socket) => socket.disconnect());
+  io?.close();
+  server?.close();
+  if (mongoose.connection.readyState === 1) await mongoose.connection.dropDatabase();
+  await mongoose.disconnect();
+  if (redis.status === 'ready') {
+    const keys = await redis.keys('*');
+    for (const key of keys) await redis.del(key.slice(redis.options.keyPrefix.length));
+  }
+  await redis.quit();
+  process.exit(process.exitCode || 0);
 });

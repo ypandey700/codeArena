@@ -18,7 +18,7 @@
   - Live duel chat with Redis rate limiting (5 messages per 5s) and ack callbacks.
   - Disconnect handling with configurable grace window (`RECONNECT_GRACE_SECONDS`), `opponent_disconnected`, and `opponent_reconnected`.
   - Battle forfeit (`battle_forfeit`) with immediate concede resolution.
-  - Full submission execution (`POST /api/v1/battles/:id/submit`) updating progress and triggering `battle_end` on solve or timeout.
+  - Full submission execution (`POST /api/v1/battles/:id/submit`) updating progress, locking solved players and finalizing scored results after both finish or timeout.
 - **API & Serialization**:
   - `GET /api/v1/battles/active`: Returns active or pending battle state `{ battle }` or `{ battle: null }`.
   - `GET /api/v1/battles/:id`: Returns finished/active battle details matching `battle_end` shape plus `status`.
@@ -53,7 +53,20 @@
 - Compact Top HUD and stakes display binding real usernames, ratings, tiers, avatars, and win/loss ratingPreview deltas.
 - Duel forfeit with confirmation dialog emitting `battle_forfeit`.
 - Disconnect banner with live countdown from `graceSeconds` for `opponent_disconnected`, cleared on `opponent_reconnected`.
-- Removed interview step completely from 1v1 battle flow, simplifying action to "Submit Solution".
+- Interview remains deferred; its score component is null.
 
 ### Left in F2:
 - None for core 1v1 battle room wiring. (Next features from backlog: private friend duels and custom match lobbies).
+
+
+### Combined scoring and per-player finish flow
+- Solved submissions and battle_finish lock only that player. First finish shortens endsAt using AFTER_FIRST_FINISH_SECONDS (default 180); both-finished or timeout starts atomic active -> finalizing -> finished.
+- Private Redis code_draft persistence (20000 characters, 1 update per 2 seconds, 1 hour TTL), latest-code auto-evaluation, and participant-specific myTests/feedback in battle_end and GET details.
+- Full test execution continues after individual runtime failures; scoring runtime sums per-test times. Original battle duration is preserved for speed scoring.
+- Central scoring weights and formulas, symmetric analysis failure handling, draw threshold under 1 point, interview null.
+- Plain-fetch Anthropic/OpenAI service, timeout, deterministic offline LLM_MOCK, untrusted-code analysis prompt, strict JSON validation and one retry.
+- Analysis runs concurrently for both players with an overall deadline. Restart recovery re-arms active timers, finishes stuck finalizing battles and reuses saved outcomes after rating preparation. Atomic user result markers prevent duplicate ratings, stats and XP.
+- Problem model and eight upserted seed slugs now include optimalTime/optimalSpace. Optional stressTest schema added; stress execution deferred. Seed rerun successfully: Seeded 8 problems successfully.
+- Requested developer simulations passed with real local MongoDB, Redis, Socket.IO, HTTP and Docker: first-finisher, draft-autoeval, double-finish, analysis-failure. Analysis demo: hash-map O(n), nested-loop O(n^2), scores 94.07 vs 82.07; messy quality subscores 3.
+- New environment variables in backend/.env.example: AFTER_FIRST_FINISH_SECONDS, LLM_PROVIDER, LLM_API_KEY, LLM_MODEL, LLM_BASE_URL, LLM_TIMEOUT_MS, LLM_MOCK.
+- Frontend wiring for finish controls, draft publishing, lock state, shortened timers and detailed scored results remains future work. No interview phase, unit tests or git commit added.

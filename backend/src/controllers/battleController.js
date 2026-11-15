@@ -1,149 +1,18 @@
 const Battle = require('../models/Battle');
-const Problem = require('../models/Problem');
-const Submission = require('../models/Submission');
 const redis = require('../config/redis');
-const { runSubmission } = require('../services/codeRunnerService');
-const { finishBattle, formatBattleState, formatBattleEndShape } = require('../services/battleService');
-const { getIO } = require('../sockets');
+const { finishPlayer, formatBattleState, formatBattleEndShape } = require('../services/battleService');
 
 const submitBattleCode = async (req, res) => {
   try {
-    const userId = String(req.user._id);
-    const rateKey = `ratelimit:submission:${userId}`;
-    const count = await redis.incr(rateKey);
-    if (count === 1) {
-      await redis.expire(rateKey, 60);
-    }
-    if (count > 10) {
-      return res.status(429).json({ message: 'Rate limit exceeded: maximum 10 submissions per minute' });
-    }
-
-    const { id } = req.params;
     const { language, code } = req.body;
-
-    if (!language || !code) {
-      return res.status(400).json({ message: 'Language and code are required' });
-    }
-
-    const battle = await Battle.findById(id);
-    if (!battle) {
-      return res.status(404).json({ message: 'Battle not found' });
-    }
-
-    const isParticipant = battle.players.some((p) => String(p.user) === String(req.user._id));
-    if (!isParticipant) {
-      return res.status(403).json({ message: 'Not a participant in this battle' });
-    }
-
-    if (battle.status !== 'active') {
-      return res.status(400).json({ message: 'Battle is not active' });
-    }
-
-    if (new Date() > new Date(battle.endsAt)) {
-      return res.status(400).json({ message: 'Battle time has expired' });
-    }
-
-    const problem = await Problem.findById(battle.problem).select('+hiddenTestCases');
-    if (!problem) {
-      return res.status(404).json({ message: 'Problem not found' });
-    }
-
-    const sampleTestCases = problem.sampleTestCases || [];
-    const hiddenTestCases = problem.hiddenTestCases || [];
-    const allTests = [...sampleTestCases, ...hiddenTestCases];
-
-    const result = await runSubmission({
-      language,
-      code,
-      testCases: allTests,
-      timeLimitMs: problem.timeLimitMs || 2000,
-      memoryLimitMb: problem.memoryLimitMb || 256,
-    });
-
-    const sanitizedResults = (result.testResults || []).map((tr, idx) => {
-      if (idx < sampleTestCases.length) return tr;
-      return {
-        passed: tr.passed,
-        output: '',
-        expected: '',
-        timeMs: tr.timeMs,
-      };
-    });
-
-    await Submission.create({
-      user: req.user._id,
-      problem: problem._id,
-      battle: battle._id,
-      language,
-      code,
-      status: result.status,
-      error: result.error || '',
-      testResults: sanitizedResults,
-      passedCount: result.passedCount,
-      totalCount: result.totalCount,
-      executionTimeMs: result.executionTimeMs,
-    });
-
-    const freshBattle = await Battle.findById(battle._id);
-    if (!freshBattle) {
-      return res.status(404).json({ message: 'Battle not found' });
-    }
-
-    const player = freshBattle.players.find((p) => String(p.user) === String(req.user._id));
-    const opponent = freshBattle.players.find((p) => String(p.user) !== String(req.user._id));
-
-    if (player) {
-      player.lastSubmissionAt = new Date();
-      player.totalTests = result.totalCount;
-      if (result.passedCount > player.bestPassed) {
-        player.bestPassed = result.passedCount;
-        player.set('runtimeMs', result.executionTimeMs, { strict: false });
-      } else if (result.passedCount === player.bestPassed && (player.get('runtimeMs') == null || (result.status === 'accepted' && result.executionTimeMs < player.get('runtimeMs')))) {
-        player.set('runtimeMs', result.executionTimeMs, { strict: false });
-      }
-      if (result.passedCount === result.totalCount && result.status === 'accepted' && !player.solvedAt) {
-        player.solvedAt = new Date();
-      }
-    }
-
-    freshBattle.timeline.push({
-      user: req.user._id,
-      passedCount: result.passedCount,
-      totalCount: result.totalCount,
-      at: new Date(),
-    });
-
-    await freshBattle.save();
-
-    const io = getIO();
-    io?.to(`user:${req.user._id}`).emit('submission_result', {
-      status: result.status,
-      passedCount: result.passedCount,
-      totalCount: result.totalCount,
-      timeMs: result.executionTimeMs,
-    });
-
-    if (opponent) {
-      io?.to(`user:${opponent.user}`).emit('opponent_progress', {
-        passedCount: result.passedCount,
-        totalCount: result.totalCount,
-        at: new Date(),
-      });
-    }
-
-    if (freshBattle.status === 'active' && result.status === 'accepted' && result.passedCount === result.totalCount) {
-      await finishBattle(freshBattle._id, req.user._id, 'solved');
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        status: result.status,
-        passedCount: result.passedCount,
-        totalCount: result.totalCount,
-        timeMs: result.executionTimeMs,
-      },
-    });
+    if (!language || typeof code !== 'string' || !code || code.length > 20000) return res.status(400).json({ message: 'Language and code (maximum 20000 characters) are required' });
+    const key = `ratelimit:submission:${req.user._id}`;
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, 60);
+    if (count > 10) return res.status(429).json({ message: 'Maximum 10 submissions per minute' });
+    const result = await finishPlayer(req.params.id, req.user._id, { language, code });
+    if (!result.success) return res.status(400).json({ message: result.message });
+    return res.json({ success: true, data: result.data });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -153,7 +22,7 @@ const getActiveBattle = async (req, res) => {
   try {
     const battle = await Battle.findOne({
       'players.user': req.user._id,
-      status: { $in: ['pending', 'active'] },
+      status: { $in: ['pending', 'active', 'finalizing'] },
     }).populate('problem players.user');
 
     if (!battle) {
@@ -176,7 +45,7 @@ const getActiveBattle = async (req, res) => {
 
 const getBattleById = async (req, res) => {
   try {
-    const battle = await Battle.findById(req.params.id).populate('problem players.user');
+    const battle = await Battle.findById(req.params.id).select('+players.myTests').populate('problem players.user');
     if (!battle) {
       return res.status(404).json({ message: 'Battle not found' });
     }
@@ -186,7 +55,7 @@ const getBattleById = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const formatted = formatBattleEndShape(battle);
+    const formatted = formatBattleEndShape(battle, req.user._id);
 
     return res.json({
       success: true,
@@ -217,7 +86,7 @@ const getMyBattles = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        battles,
+        battles: battles.map((battle) => formatBattleEndShape(battle, req.user._id)),
         total,
         page,
         limit,

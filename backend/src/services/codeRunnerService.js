@@ -133,9 +133,6 @@ while [ $i -lt $TEST_COUNT ]; do
   fi
 
   echo "$EXIT_CODE $TIME_MS" > "$META_FILE"
-  if [ $EXIT_CODE -ne 0 ]; then
-    break
-  fi
   i=$((i + 1))
 done
 `;
@@ -269,6 +266,7 @@ function runContainerTask({ language, code, testCases, timeLimitMs = 2000, memor
           if (!fs.existsSync(metaPath)) {
             testResults.push({
               passed: false,
+              status: 'not_run',
               output: '',
               expected: effectiveTests[i].expectedOutput || '',
               timeMs: 0,
@@ -291,6 +289,8 @@ function runContainerTask({ language, code, testCases, timeLimitMs = 2000, memor
               output,
               expected,
               timeMs,
+              status: 'time_limit',
+              error: 'Time Limit Exceeded',
             });
             if (!firstFailingStatus) {
               firstFailingStatus = 'time_limit';
@@ -299,6 +299,8 @@ function runContainerTask({ language, code, testCases, timeLimitMs = 2000, memor
           } else if (exitCode !== 0) {
             testResults.push({
               passed: false,
+              status: 'runtime_error',
+              error: err || 'Runtime Error',
               output: err || output,
               expected,
               timeMs,
@@ -311,6 +313,7 @@ function runContainerTask({ language, code, testCases, timeLimitMs = 2000, memor
             const passed = normalize(output) === normalize(expected);
             testResults.push({
               passed,
+              status: passed ? 'accepted' : 'wrong_answer',
               output,
               expected,
               timeMs,
@@ -334,7 +337,7 @@ function runContainerTask({ language, code, testCases, timeLimitMs = 2000, memor
           testResults,
           passedCount,
           totalCount: effectiveTests.length,
-          executionTimeMs,
+          executionTimeMs: testResults.reduce((sum, row) => sum + row.timeMs, 0),
         });
       } finally {
         exec(`docker rm -f ${containerName}`, () => {});
