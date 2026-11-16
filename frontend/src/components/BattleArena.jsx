@@ -1,897 +1,324 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ArrowRight, BookOpen, Check, CheckCircle2, ChevronRight, CircleAlert, CircleHelp, Clock3, Code2, Flag, LoaderCircle, LockKeyhole, MessageSquare, Play, RotateCcw, Send, Swords, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useBattle, toTimestamp } from "../context/BattleContext";
 import AIInterview from "../pages/AIInterview";
+import Brand from "./Brand";
 import api from "../services/api";
+import "./BattleArena.css";
 
-const defaultTemplates = [
-`class Solution:
-    def solve(self, *args):
-        pass`,
-`function solve(...args) {
-  // your solution here
-}`,
-`#include <iostream>
-using namespace std;
-
-int main() {
-    return 0;
-}`,
-`public class Solution {
-    public static void main(String[] args) {
-    }
-}`,
+const LANGUAGES = [
+  { key: "python", label: "Python", file: "solution.py", starter: "import sys\n\ndef solve():\n    data = sys.stdin.read().strip()\n    # Read the input, solve the problem, and print your answer.\n    pass\n\nif __name__ == \"__main__\":\n    solve()\n" },
+  { key: "javascript", label: "JavaScript", file: "solution.js", starter: "const input = require(\"fs\").readFileSync(0, \"utf8\").trim();\n\nfunction solve(input) {\n  // Read the input, solve the problem, and print your answer.\n}\n\nsolve(input);\n" },
+  { key: "cpp", label: "C++", file: "solution.cpp", starter: "#include <iostream>\nusing namespace std;\n\nint main() {\n    // Read from cin and print your answer with cout.\n    return 0;\n}\n" },
+  { key: "java", label: "Java", file: "Main.java", starter: "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner input = new Scanner(System.in);\n        // Read the input and print your answer.\n    }\n}\n" },
 ];
+const STATUS_LABELS = { accepted: "All tests passed", wrong_answer: "Some tests failed", compile_error: "Compilation error", runtime_error: "Runtime error", time_limit: "Time limit exceeded", time_limit_exceeded: "Time limit exceeded", no_code: "No code submitted" };
+const displayValue = (value) => value == null ? "Not provided" : value === "" ? "(empty)" : typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+const starterFor = (problem, language) => problem?.starterCode?.[language] || LANGUAGES.find((item) => item.key === language)?.starter || "";
 
-const langKeys = ["python", "javascript", "cpp", "java"];
-const langLabels = ["Python 3.11", "JavaScript", "C++ 20", "Java 21"];
-const langExts = ["py", "js", "cpp", "java"];
-
-function escapeHtml(str) {
-  if (!str) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function restoreEditor(battle, userId) {
+  let saved;
+  try { saved = JSON.parse(sessionStorage.getItem(`battle-editor:${battle?.battleId}:${userId}`)); } catch {}
+  const language = LANGUAGES.some((item) => item.key === saved?.language) ? saved.language : "python";
+  const codes = Object.fromEntries(LANGUAGES.map(({ key }) => [key, typeof saved?.codes?.[key] === "string" ? saved.codes[key] : starterFor(battle?.problem, key)]));
+  return { language, codes, restored: !!saved };
 }
 
-export default function BattleArena({ onExit, onQueueNext, onReport }) {
+function ArenaDialog({ kind, title, onClose, children }) {
+  const dialogRef = useRef(null);
+  const previousFocus = useRef(document.activeElement);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog.showModal();
+    (dialog.querySelector('[data-initial-focus]') || dialog.querySelector('button'))?.focus({ preventScroll: true });
+    return () => { dialog.close(); if (previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); };
+  }, []);
+  return createPortal(<dialog ref={dialogRef} className={`ba-dialog ba-dialog--${kind}`} aria-labelledby="ba-dialog-title" onCancel={(event) => { event.preventDefault(); onClose(); }} onKeyDown={(event) => {
+    if (event.key !== "Tab") return;
+    const controls = Array.from(dialogRef.current.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), a[href]')).filter((element) => element.getClientRects().length);
+    if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1)?.focus(); }
+    else if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0]?.focus(); }
+  }} onClick={(event) => {
+    if (event.target !== event.currentTarget) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) onClose();
+  }}><header><h2 id="ba-dialog-title">{title}</h2><button type="button" className="ba-icon-button" onClick={onClose} aria-label="Close dialog"><X size={18} aria-hidden="true" /></button></header>{children}</dialog>, document.body);
+}
+
+function ValueBlock({ label, value }) {
+  return <div className="ba-value"><span>{label}</span><pre>{displayValue(value)}</pre></div>;
+}
+
+export default function BattleArena({ onExit, onQueueNext }) {
   const { user } = useAuth();
-  const {
-    activeBattle,
-    chatMessages,
-    sendChatMessage,
-    opponentProgress,
-    submissionResult,
-    submitBattleCode,
-    saveCodeDraft,
-    finishBattle,
-    forfeitBattle,
-    opponentDisconnected,
-    timeOffset,
-    interview,
-  } = useBattle();
-
-  const frameRef = useRef(null);
-  const [concede, setConcede] = useState(false);
-  const [confirmFinish, setConfirmFinish] = useState(false);
-  const [finishing, setFinishing] = useState(false);
-  const [draftError, setDraftError] = useState("");
-  const [popup, setPopup] = useState(null);
+  const { activeBattle, chatMessages, sendChatMessage, opponentProgress, submissionResult, submitBattleCode, saveCodeDraft, finishBattle, forfeitBattle, opponentDisconnected, timeOffset, interview } = useBattle();
+  const problem = activeBattle?.problem;
+  const initialRef = useRef(null);
+  if (!initialRef.current) initialRef.current = restoreEditor(activeBattle, user?._id);
+  const [language, setLanguage] = useState(initialRef.current.language);
+  const [code, setCode] = useState(initialRef.current.codes[initialRef.current.language]);
+  const codesRef = useRef(initialRef.current.codes);
+  const languageRef = useRef(initialRef.current.language);
+  const editorRef = useRef(null);
+  const gutterRef = useRef(null);
+  const escapeTabRef = useRef(false);
+  const [dialog, setDialog] = useState(null);
+  const [problemTab, setProblemTab] = useState("description");
+  const [view, setView] = useState("problem");
+  const [testTab, setTestTab] = useState("samples");
   const [selectedCase, setSelectedCase] = useState(0);
-  const popupRef = useRef(null);
-
-  const codeByLangRef = useRef({
-    python: "",
-    javascript: "",
-    cpp: "",
-    java: "",
-  });
-  const currentLangRef = useRef("python");
+  const [execution, setExecution] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [finishing, setFinishing] = useState(false);
+  const finishingRef = useRef(false);
+  const [actionError, setActionError] = useState("");
+  const [draftError, setDraftError] = useState("");
+  const [draftStatus, setDraftStatus] = useState(initialRef.current.restored ? "local" : "starter");
   const draftTimerRef = useRef(null);
   const lastDraftAtRef = useRef(0);
   const draftVersionRef = useRef(0);
   const dirtyRef = useRef(false);
+  const publishRef = useRef(null);
+  const executeRef = useRef(null);
   const liveRef = useRef({});
-
-  const busyRef = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [execution, setExecution] = useState(null);
-  const [executionError, setExecutionError] = useState("");
-
+  const mountedRef = useRef(false);
+  const [chatInput, setChatInput] = useState("");
+  const [seenMessages, setSeenMessages] = useState(chatMessages.length);
+  const chatEndRef = useRef(null);
   const [disconnectCountdown, setDisconnectCountdown] = useState(null);
-  const unreadCountRef = useRef(0);
-  const prevMessagesCountRef = useRef(0);
 
-  const problem = activeBattle?.problem;
-  const opponent = activeBattle?.opponent;
-  const totalTests =
-    opponentProgress?.totalCount ||
-    submissionResult?.totalCount ||
-    activeBattle?.players?.find((p) => p.totalTests > 0)?.totalTests ||
-    activeBattle?.ownProgress?.totalTests ||
-    activeBattle?.opponentProgress?.totalTests ||
-    problem?.sampleTestCases?.length || 0;
-
-  const calculateRemainingSeconds = () => {
-    if (!activeBattle?.endsAt) return 0;
-    const now = Date.now() + (timeOffset || 0);
-    const end = toTimestamp(activeBattle.endsAt);
-    if (!end) return 0;
-    return Math.max(0, Math.floor((end - now) / 1000));
-  };
-
-  const [remainingTime, setRemainingTime] = useState(calculateRemainingSeconds);
+  function remainingSeconds() {
+    const end = toTimestamp(activeBattle?.endsAt);
+    return end ? Math.max(0, Math.floor((end - Date.now() - (timeOffset || 0)) / 1000)) : 0;
+  }
+  const [remaining, setRemaining] = useState(remainingSeconds);
   const ownFinished = !!activeBattle?.ownFinished || ["interview", "done"].includes(activeBattle?.myPhase);
   const finalizing = activeBattle?.status === "finalizing";
-  const locked = ownFinished || finalizing || finishing || remainingTime <= 0;
-  liveRef.current = { battle: activeBattle, ownFinished, finalizing, finishing, remainingTime, userId: user?._id };
+  const showInterview = !!interview?.entered || activeBattle?.myPhase === "done" || finalizing;
+  const locked = ownFinished || finalizing || finishing || remaining <= 0 || !activeBattle;
+  liveRef.current = { battle: activeBattle, userId: user?._id, ownFinished, finalizing, remaining, locked, saveCodeDraft, submitBattleCode, finishBattle };
 
-  const persistEditor = () => {
-    const { battle, userId } = liveRef.current;
-    if (!battle?.battleId) return;
-    try {
-      sessionStorage.setItem(`battle-editor:${battle.battleId}:${userId}`, JSON.stringify({ language: currentLangRef.current, codes: codeByLangRef.current }));
-    } catch {}
-  };
-
-  const syncEditorState = () => {
-    const doc = frameRef.current?.contentDocument;
-    if (!doc) return;
+  function persistEditor() {
     const state = liveRef.current;
-    const disabled = state.ownFinished || state.finalizing || state.finishing || state.remainingTime <= 0 || busyRef.current;
-    const editor = doc.getElementById("battle-code-editor");
-    if (editor) editor.readOnly = disabled;
-    for (const id of ["submit-duel-btn", "run-local-tests-btn", "finish-duel-btn", "reset-code-btn"]) {
-      const button = doc.getElementById(id);
-      if (button) button.disabled = disabled;
-    }
-    doc.querySelectorAll(".lang-tab").forEach((tab) => { tab.disabled = disabled; });
-  };
+    if (!state.battle?.battleId) return;
+    try { sessionStorage.setItem(`battle-editor:${state.battle.battleId}:${state.userId}`, JSON.stringify({ language: languageRef.current, codes: codesRef.current })); } catch {}
+  }
 
-  const publishDraft = async (force = false) => {
+  function scheduleDraft(force = false) {
+    clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => publishRef.current?.(force), force ? 0 : Math.max(0, 5000 - (Date.now() - lastDraftAtRef.current)));
+  }
+
+  async function publishDraft(force = false) {
     clearTimeout(draftTimerRef.current);
     const state = liveRef.current;
-    if (!state.battle || state.ownFinished || state.finalizing || state.remainingTime <= 0) return false;
+    if (!state.battle || state.ownFinished || state.finalizing || state.remaining <= 0) return false;
     if (!force && !dirtyRef.current) return true;
-    const language = currentLangRef.current;
-    const code = codeByLangRef.current[language];
-    if (typeof code !== "string") return false;
     const version = draftVersionRef.current;
+    const battleId = state.battle.battleId;
     lastDraftAtRef.current = Date.now();
+    setDraftStatus("saving");
     try {
-      await saveCodeDraft({ language, code });
+      await state.saveCodeDraft({ language: languageRef.current, code: codesRef.current[languageRef.current] });
+      if (!mountedRef.current || liveRef.current.battle?.battleId !== battleId) return false;
       if (draftVersionRef.current === version) dirtyRef.current = false;
+      setDraftStatus(dirtyRef.current ? "unsaved" : "saved");
       setDraftError("");
       if (dirtyRef.current) scheduleDraft();
       return true;
     } catch (error) {
-      if (!liveRef.current.ownFinished && !liveRef.current.finalizing) {
-        setDraftError(error.message);
+      if (mountedRef.current && liveRef.current.battle?.battleId === battleId && !liveRef.current.ownFinished && !liveRef.current.finalizing) {
+        setDraftStatus("unsaved");
+        setDraftError(error.message || "Could not save your draft.");
         if (dirtyRef.current) scheduleDraft();
       }
       return false;
     }
-  };
+  }
+  publishRef.current = publishDraft;
 
-  const scheduleDraft = (force = false) => {
-    clearTimeout(draftTimerRef.current);
-    draftTimerRef.current = setTimeout(() => { publishDraft(force); }, force ? 0 : Math.max(0, 5000 - (Date.now() - lastDraftAtRef.current)));
-  };
-
-  const editorChanged = () => {
+  function changed() {
     dirtyRef.current = true;
     draftVersionRef.current++;
+    setDraftStatus("unsaved");
     persistEditor();
     scheduleDraft();
-  };
+  }
+
+  function updateCode(value) {
+    if (liveRef.current.locked || busyRef.current) return;
+    codesRef.current[languageRef.current] = value;
+    setCode(value);
+    changed();
+  }
+
+  function switchLanguage(value) {
+    if (locked || busyRef.current || !LANGUAGES.some((item) => item.key === value)) return;
+    languageRef.current = value;
+    setLanguage(value);
+    setCode(codesRef.current[value]);
+    changed();
+    scheduleDraft(true);
+    if (gutterRef.current) gutterRef.current.scrollTop = 0;
+  }
 
   useEffect(() => {
-    const flush = () => {
-      if (document.visibilityState === "hidden") publishDraft(true);
-    };
+    mountedRef.current = true;
+    const flush = () => { if (document.visibilityState === "hidden") publishRef.current?.(true); };
     document.addEventListener("visibilitychange", flush);
-    return () => {
-      document.removeEventListener("visibilitychange", flush);
-      clearTimeout(draftTimerRef.current);
-    };
-  }, [activeBattle?.battleId]);
+    return () => { mountedRef.current = false; document.removeEventListener("visibilitychange", flush); clearTimeout(draftTimerRef.current); };
+  }, []);
 
   useEffect(() => {
-    syncEditorState();
-    if (ownFinished || finalizing) {
-      clearTimeout(draftTimerRef.current);
-      setPopup(null);
-      setConfirmFinish(false);
-    }
-  }, [ownFinished, finalizing, finishing, busy, remainingTime]);
-
-  useEffect(() => {
-    if (!problem || !activeBattle?.battleId) return;
-    let saved;
-    try { saved = JSON.parse(sessionStorage.getItem(`battle-editor:${activeBattle.battleId}:${user?._id}`)); } catch {}
-    langKeys.forEach((lang, idx) => {
-      codeByLangRef.current[lang] = saved?.codes?.[lang] ?? problem.starterCode?.[lang] ?? defaultTemplates[idx];
-    });
-    currentLangRef.current = langKeys.includes(saved?.language) ? saved.language : "python";
+    clearTimeout(draftTimerRef.current);
+    const saved = restoreEditor(activeBattle, user?._id);
+    codesRef.current = saved.codes;
+    languageRef.current = saved.language;
+    setLanguage(saved.language);
+    setCode(saved.codes[saved.language]);
+    busyRef.current = false;
+    finishingRef.current = false;
+    setBusy(false);
+    setFinishing(false);
     dirtyRef.current = false;
-    const doc = frameRef.current?.contentDocument;
-    const editor = doc?.getElementById("battle-code-editor");
-    if (editor) editor.value = codeByLangRef.current[currentLangRef.current];
-    doc?.querySelectorAll(".lang-tab").forEach((tab, index) => {
-      tab.className = index === langKeys.indexOf(currentLangRef.current) ? "lang-tab px-2.5 py-0.5 rounded bg-surface-container-high text-primary-container font-caption text-[11px]" : "lang-tab px-2.5 py-0.5 rounded text-muted hover:text-on-surface font-caption text-[11px]";
-    });
-    syncEditorState();
+    draftVersionRef.current++;
+    lastDraftAtRef.current = 0;
+    setDraftStatus(saved.restored ? "local" : "starter");
+    setExecution(null);
+    setDraftError("");
+    setActionError("");
+    setSelectedCase(0);
+    setSeenMessages(0);
   }, [activeBattle?.battleId, problem?.slug, user?._id]);
 
+  useEffect(() => { const tick = () => setRemaining(remainingSeconds()); tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer); }, [activeBattle?.endsAt, timeOffset]);
   useEffect(() => {
-    const tick = () => {
-      const rem = calculateRemainingSeconds();
-      setRemainingTime(rem);
-      const doc = frameRef.current?.contentDocument;
-      if (doc) {
-        const timerEl = doc.getElementById("duel-timer");
-        if (timerEl) {
-          const m = String(Math.floor(rem / 60)).padStart(2, "0");
-          const s = String(rem % 60).padStart(2, "0");
-          timerEl.textContent = `${m}:${s}`;
-        }
-      }
-    };
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [activeBattle?.endsAt, timeOffset]);
-
+    if (ownFinished || finalizing) { clearTimeout(draftTimerRef.current); setDialog(null); }
+  }, [ownFinished, finalizing]);
   useEffect(() => {
-    if (!opponentDisconnected) {
-      setDisconnectCountdown(null);
-      return;
-    }
-    const initial = opponentDisconnected.graceSeconds || 30;
-    setDisconnectCountdown(initial);
-    const interval = setInterval(() => {
-      setDisconnectCountdown((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
+    if (!activeBattle || showInterview) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [!!activeBattle, showInterview]);
+  useEffect(() => {
+    if (!opponentDisconnected) { setDisconnectCountdown(null); return; }
+    const deadline = Date.now() + (opponentDisconnected.graceSeconds ?? 30) * 1000;
+    const tick = () => setDisconnectCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer);
   }, [opponentDisconnected]);
-
-  const updateHudAndTelemetry = () => {
-    const doc = frameRef.current?.contentDocument;
-    if (!doc) return;
-
-    const hTier = doc.getElementById("header-player-tier");
-    if (hTier) hTier.textContent = user?.tier || "RANKED";
-    const hRating = doc.getElementById("header-player-rating");
-    if (hRating) hRating.textContent = `${user?.rating ?? "—"} RR`;
-    const hUser = doc.getElementById("header-player-username");
-    if (hUser) hUser.textContent = user?.username || "You";
-    const hAvatar = doc.getElementById("header-player-avatar");
-    if (hAvatar && user?.avatar) {
-      hAvatar.innerHTML = `<img src="${user.avatar}" alt="" class="h-full w-full object-cover rounded-full" />`;
-    }
-
-    const myAvatar = doc.getElementById("hud-my-avatar");
-    if (myAvatar && user?.avatar) {
-      myAvatar.innerHTML = `<img src="${user.avatar}" alt="" class="h-full w-full object-cover rounded" />`;
-    }
-    const myTier = doc.getElementById("hud-my-tier");
-    if (myTier) myTier.textContent = user?.tier || "RANKED";
-    const myRating = doc.getElementById("hud-my-rating");
-    if (myRating) myRating.textContent = `${user?.rating ?? "—"} RR`;
-
-    const stakesWin = doc.getElementById("hud-stakes-win");
-    if (stakesWin) {
-      const winVal = activeBattle?.ratingPreview?.win;
-      stakesWin.textContent = winVal != null ? `+${winVal} RR` : "Scored result";
-    }
-    const stakesLoss = doc.getElementById("hud-stakes-loss");
-    if (stakesLoss) {
-      const lossVal = activeBattle?.ratingPreview?.loss;
-      stakesLoss.textContent = lossVal != null ? `${lossVal} RR` : "Pending";
-    }
-
-    const oppUser = doc.getElementById("hud-opp-username");
-    if (oppUser) oppUser.textContent = opponent?.username || "Challenger";
-    const oppTier = doc.getElementById("hud-opp-tier");
-    if (oppTier) oppTier.textContent = opponent?.tier || "RANKED";
-    const oppRating = doc.getElementById("hud-opp-rating");
-    if (oppRating) oppRating.textContent = `${opponent?.rating ?? "—"} RR`;
-    const oppAvatar = doc.getElementById("hud-opp-avatar");
-    if (oppAvatar && opponent?.avatar) {
-      oppAvatar.innerHTML = `<img src="${opponent.avatar}" alt="" class="h-full w-full object-cover rounded" />`;
-    }
-
-    const myPassed = submissionResult?.passedCount ?? (activeBattle?.ownProgress?.bestPassed || 0);
-    const oppPassed = opponentProgress?.passedCount ?? (activeBattle?.opponentProgress?.bestPassed || 0);
-    const myPct = totalTests > 0 ? Math.min(100, Math.max(0, Math.round((myPassed / totalTests) * 100))) : 0;
-    const oppPct = totalTests > 0 ? Math.min(100, Math.max(0, Math.round((oppPassed / totalTests) * 100))) : 0;
-
-    const myProgBar = doc.getElementById("hud-my-progress-bar");
-    if (myProgBar) myProgBar.style.width = `${myPct}%`;
-    const myProgText = doc.getElementById("hud-my-progress-text");
-    if (myProgText) myProgText.innerHTML = `${myPassed}<span class="text-muted font-normal">/${totalTests}</span>`;
-
-    const oppProgBar = doc.getElementById("hud-opp-progress-bar");
-    if (oppProgBar) oppProgBar.style.width = `${oppPct}%`;
-    const oppProgText = doc.getElementById("hud-opp-progress-text");
-    if (oppProgText) oppProgText.innerHTML = `${oppPassed}<span class="text-muted font-normal">/${totalTests}</span>`;
-
-    const chatOppName = doc.getElementById("chat-opp-name");
-    if (chatOppName) chatOppName.textContent = opponent?.username || "Challenger";
-    const chatTriggerSub = doc.getElementById("chat-trigger-sub");
-    if (chatTriggerSub) chatTriggerSub.textContent = `vs ${opponent?.username || "Challenger"}`;
-
-    const problemTitle = doc.getElementById("problem-title");
-    if (problemTitle && problem?.title) {
-      problemTitle.textContent = problem.title;
-      problemTitle.setAttribute("title", problem.title);
-    }
-
-    const diffBadge = doc.getElementById("problem-difficulty-badge");
-    if (diffBadge && problem?.difficulty) {
-      diffBadge.textContent = problem.difficulty.toUpperCase();
-      if (problem.difficulty === "easy") {
-        diffBadge.className = "px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-400 border border-emerald-400/30 font-caption text-[10px] font-bold flex-shrink-0";
-      } else if (problem.difficulty === "medium") {
-        diffBadge.className = "px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-400 border border-amber-400/30 font-caption text-[10px] font-bold flex-shrink-0";
-      } else {
-        diffBadge.className = "px-1.5 py-0.5 rounded bg-rose-400/20 text-rose-400 border border-rose-400/30 font-caption text-[10px] font-bold flex-shrink-0";
-      }
-    }
-
-    const descContainer = doc.getElementById("tab-content-desc");
-    if (descContainer && problem?.description) {
-      descContainer.innerHTML = `<div class="text-on-surface-variant text-[13px] leading-relaxed whitespace-pre-wrap">${escapeHtml(problem.description)}</div>`;
-    }
-
-    const constraintsContainer = doc.getElementById("tab-content-constraints");
-    if (constraintsContainer && problem?.constraints) {
-      constraintsContainer.innerHTML = `<div class="p-2.5 rounded bg-surface-container space-y-1.5 border border-white/[0.04] text-[11px] text-secondary whitespace-pre-wrap">${escapeHtml(problem.constraints)}</div>`;
-    }
-  };
-
-  const updateChatStream = () => {
-    const doc = frameRef.current?.contentDocument;
-    if (!doc) return;
-    const chatStream = doc.getElementById("chat-stream");
-    const chatModal = doc.getElementById("floating-chat-modal");
-    const chatBadge = doc.getElementById("chat-unread-badge");
-    if (!chatStream) return;
-
-    const isClosed = !chatModal?.classList.contains("open");
-    if (chatMessages.length > prevMessagesCountRef.current) {
-      const newMsgs = chatMessages.slice(prevMessagesCountRef.current);
-      newMsgs.forEach((m) => {
-        if (m.from !== user?.username && isClosed) {
-          unreadCountRef.current += 1;
-        }
-      });
-      if (isClosed && unreadCountRef.current > 0 && chatBadge) {
-        chatBadge.textContent = String(unreadCountRef.current);
-        chatBadge.classList.remove("hidden");
-      }
-    }
-    prevMessagesCountRef.current = chatMessages.length;
-
-    const oppPassed = opponentProgress?.passedCount ?? (activeBattle?.opponentProgress?.bestPassed || 0);
-
-    let html = `
-      <div class="text-center my-0.5">
-        <span class="px-2 py-0.5 rounded-full bg-surface-container text-muted font-mono text-[10px] inline-block border border-white/[0.04]">
-          ⚡ Duel initialized • 1v1 Battle Mode
-        </span>
-      </div>
-    `;
-
-    if (oppPassed > 0) {
-      html += `
-        <div class="p-1.5 rounded bg-surface-container-lowest text-surface-tint font-mono text-[10px] flex items-center gap-1.5 border border-white/[0.04]">
-          <span class="material-symbols-outlined text-[14px] text-primary-container">bolt</span>
-          <span>${escapeHtml(opponent?.username || "Opponent")} passed <strong>${oppPassed}/${totalTests} tests</strong></span>
-        </div>
-      `;
-    }
-
-    chatMessages.forEach((msg) => {
-      const date = msg.at ? new Date(msg.at) : new Date();
-      const timeStr = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-      const safeText = escapeHtml(msg.text);
-
-      if (msg.isSystem) {
-        html += `
-          <div class="p-1.5 rounded bg-error/20 text-error font-mono text-[10px] text-center border border-error/30">
-            ${safeText}
-          </div>
-        `;
-      } else if (msg.from === user?.username || msg.from === "You") {
-        html += `
-          <div class="flex flex-col items-end space-y-0.5">
-            <div class="flex items-center gap-1.5 text-muted text-[10px] font-mono">
-              <span>${timeStr}</span>
-              <span class="text-primary-container font-semibold">You</span>
-            </div>
-            <div class="p-2 rounded-lg rounded-tr-none bg-primary-container text-on-primary font-semibold text-xs max-w-[85%] shadow-sm">
-              ${safeText}
-            </div>
-          </div>
-        `;
-      } else {
-        html += `
-          <div class="flex flex-col items-start space-y-0.5">
-            <div class="flex items-center gap-1.5 text-muted text-[10px] font-mono">
-              <span class="text-secondary font-semibold">${escapeHtml(msg.from)}</span>
-              <span>${timeStr}</span>
-            </div>
-            <div class="p-2 rounded-lg rounded-tl-none bg-surface-container text-on-surface text-xs max-w-[85%] border border-white/[0.04]">
-              ${safeText}
-            </div>
-          </div>
-        `;
-      }
-    });
-
-    chatStream.innerHTML = html;
-    chatStream.scrollTop = chatStream.scrollHeight;
-  };
-
+  useEffect(() => { if (dialog === "chat") { setSeenMessages(chatMessages.length); chatEndRef.current?.scrollIntoView({ block: "nearest" }); } }, [dialog, chatMessages]);
   useEffect(() => {
-    updateHudAndTelemetry();
-  }, [submissionResult, opponentProgress, activeBattle, user, totalTests]);
-
-  useEffect(() => {
-    updateChatStream();
-  }, [chatMessages, opponentProgress]);
+    const keydown = (event) => {
+      if (event.defaultPrevented || event.target?.closest?.("dialog[open]")) return;
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); executeRef.current?.(false); }
+      else if (event.altKey && event.key === "Enter") { event.preventDefault(); executeRef.current?.(true); }
+    };
+    window.addEventListener("keydown", keydown); return () => window.removeEventListener("keydown", keydown);
+  }, []);
 
   async function execute(submit = false) {
     const state = liveRef.current;
-    if (busyRef.current || state.ownFinished || state.finalizing || state.finishing || state.remainingTime <= 0) return;
+    if (busyRef.current || finishingRef.current || state.locked) return;
+    const battleId = state.battle?.battleId;
+    const selectedLanguage = languageRef.current;
+    const source = codesRef.current[selectedLanguage];
+    setTestTab("results");
+    setView("tests");
+    const kind = submit ? "submit" : "samples";
+    if (!source?.trim()) { setExecution({ kind, error: "Write your solution before running or submitting code." }); return; }
+    if (!state.battle?.problem?.slug) { setExecution({ kind, error: "The problem has not loaded. Reconnect before running your code." }); return; }
     busyRef.current = true;
     setBusy(true);
-    setExecution(null);
-    setExecutionError("");
-    setPopup("run");
-
-    const doc = frameRef.current?.contentDocument;
-    const runBtn = doc?.getElementById("run-local-tests-btn");
-    const submitBtn = doc?.getElementById("submit-duel-btn");
-
-    if (runBtn) runBtn.disabled = true;
-    if (submitBtn) submitBtn.disabled = true;
-
-    if (submit && submitBtn) {
-      const span = submitBtn.querySelector("span:last-child");
-      if (span) span.textContent = "Running…";
-    } else if (!submit && runBtn) {
-      const span = runBtn.querySelector("span");
-      if (span) span.textContent = "Running…";
-    }
-
+    setExecution({ kind, pending: true });
     try {
-      const language = currentLangRef.current;
-      const code = codeByLangRef.current[language] || doc?.getElementById("battle-code-editor")?.value || "";
-
-      if (submit) {
-        const res = await submitBattleCode({ language, code });
-        setExecution(res?.data || res);
-      } else {
-        const response = await api.post(
-          "/submissions/run",
-          {
-            slug: problem?.slug || "two-sum",
-            language,
-            code,
-          },
-          { timeout: 60000 }
-        );
-        const data = response.data?.data || response.data;
-        setExecution({
-          ...data,
-          timeMs: data.executionTimeMs ?? data.timeMs,
-        });
-      }
+      const response = submit ? await state.submitBattleCode({ language: selectedLanguage, code: source }) : await api.post("/submissions/run", { slug: state.battle.problem.slug, language: selectedLanguage, code: source }, { timeout: 60000 });
+      if (!mountedRef.current || liveRef.current.battle?.battleId !== battleId) return;
+      const data = submit ? response?.data || response : response.data?.data || response.data;
+      setExecution({ kind, data: { ...data, timeMs: data.executionTimeMs ?? data.timeMs } });
     } catch (error) {
-      if (error.response?.status === 429) {
-        setExecutionError("Rate limit exceeded: You can submit at most 10 times per minute. Please wait a moment before submitting again.");
-      } else {
-        setExecutionError(
-          error.response?.data?.message ||
-            (error.code === "ECONNABORTED" ? "Execution timed out. Please try again." : error.message)
-        );
-      }
+      if (!mountedRef.current || liveRef.current.battle?.battleId !== battleId) return;
+      setExecution({ kind, error: error.response?.status === 429 ? "Too many requests. Wait a moment, then try again." : error.response?.data?.message || (error.code === "ECONNABORTED" ? "The run timed out. Try again." : error.message || "Code could not be evaluated.") });
     } finally {
-      busyRef.current = false;
-      setBusy(false);
-      if (runBtn) {
-        runBtn.disabled = liveRef.current.ownFinished || liveRef.current.finalizing;
-        const span = runBtn.querySelector("span");
-        if (span) span.innerHTML = 'Run Tests <span class="text-muted font-caption text-[10px]">(Ctrl+↵)</span>';
-      }
-      if (submitBtn) {
-        submitBtn.disabled = liveRef.current.ownFinished || liveRef.current.finalizing;
-        const span = submitBtn.querySelector("span:last-child");
-        if (span) span.textContent = "SUBMIT SOLUTION (Alt+↵)";
-      }
-      syncEditorState();
+      if (mountedRef.current && liveRef.current.battle?.battleId === battleId) { busyRef.current = false; setBusy(false); }
     }
   }
+  executeRef.current = execute;
 
-  useEffect(() => {
-    if (popup && !popupRef.current?.open) popupRef.current?.showModal();
-    if (!popup && popupRef.current?.open) popupRef.current?.close();
-  }, [popup]);
-
-  function connectArena() {
-    const doc = frameRef.current?.contentDocument;
-    if (!doc) return;
-
-    updateHudAndTelemetry();
-    updateChatStream();
-
-    const editor = doc.getElementById("battle-code-editor");
-    const gutter = doc.querySelector("#editor-wrapper > div:first-child");
-
-    const starter =
-      codeByLangRef.current[currentLangRef.current] ??
-      problem?.starterCode?.[currentLangRef.current] ??
-      defaultTemplates[0];
-
-    if (editor) {
-      editor.value = starter;
-    }
-
-    function updateLines() {
-      if (!gutter || !editor) return;
-      gutter.replaceChildren(
-        ...Array.from({ length: Math.max(16, editor.value.split("\n").length) }, (_, index) => {
-          const line = doc.createElement("div");
-          line.textContent = index + 1;
-          return line;
-        })
-      );
-      gutter.scrollTop = editor.scrollTop;
-    }
-
-    if (editor) {
-      editor.addEventListener("input", () => {
-        if (editor.readOnly) return;
-        codeByLangRef.current[currentLangRef.current] = editor.value;
-        editorChanged();
-        updateLines();
-      });
-      editor.addEventListener("scroll", () => {
-        gutter.scrollTop = editor.scrollTop;
-      });
-      editor.addEventListener("keydown", (event) => {
-        if (event.key === "Tab" && !editor.readOnly) {
-          event.preventDefault();
-          editor.setRangeText("    ", editor.selectionStart, editor.selectionEnd, "end");
-          codeByLangRef.current[currentLangRef.current] = editor.value;
-          editorChanged();
-          updateLines();
-        }
-      });
-    }
-
-    const langTabs = doc.querySelectorAll(".lang-tab");
-    langTabs.forEach((tab, index) => {
-      tab.addEventListener("click", () => {
-        const state = liveRef.current;
-        if (state.ownFinished || state.finalizing || state.finishing || state.remainingTime <= 0 || busyRef.current) return;
-        if (editor) {
-          codeByLangRef.current[currentLangRef.current] = editor.value;
-        }
-
-        const newLang = langKeys[index];
-        currentLangRef.current = newLang;
-        dirtyRef.current = true;
-        draftVersionRef.current++;
-
-        langTabs.forEach((t) => {
-          t.className = "lang-tab px-2.5 py-0.5 rounded text-muted hover:text-on-surface font-caption text-[11px] transition-all";
-        });
-        tab.className = "lang-tab px-2.5 py-0.5 rounded bg-primary-container text-on-primary font-caption text-[11px] font-bold shadow-sm";
-
-        const myLangBadge = doc.getElementById("hud-my-lang");
-        if (myLangBadge) myLangBadge.textContent = langLabels[index];
-
-        const filenameEl = doc.getElementById("editor-filename");
-        if (filenameEl) {
-          filenameEl.textContent = `${problem?.slug || "solution"}.${langExts[index]}`;
-        }
-
-        const nextCode =
-          codeByLangRef.current[newLang] ??
-          problem?.starterCode?.[newLang] ??
-          defaultTemplates[index];
-
-        if (editor) {
-          editor.value = nextCode;
-        }
-        persistEditor();
-        scheduleDraft(true);
-        updateLines();
-      });
-    });
-
-    const resetBtn = doc.getElementById("reset-code-btn");
-    if (resetBtn) {
-      resetBtn.addEventListener("click", () => {
-        if (editor?.readOnly) return;
-        const langIdx = langKeys.indexOf(currentLangRef.current);
-        const resetVal =
-          problem?.starterCode?.[currentLangRef.current] ||
-          defaultTemplates[langIdx >= 0 ? langIdx : 0];
-        codeByLangRef.current[currentLangRef.current] = resetVal;
-        if (editor) editor.value = resetVal;
-        editorChanged();
-        updateLines();
-      });
-    }
-
-    const footerContainer = doc.getElementById("question-test-footer");
-    if (footerContainer && problem?.sampleTestCases?.length) {
-      const cases = problem.sampleTestCases;
-      footerContainer.innerHTML = `
-        <div class="flex items-center justify-between text-caption text-muted mb-1 text-[11px]">
-          <span>Local Test Cases</span>
-          <span class="text-primary-container font-mono text-[10px]">${cases.length} / ${cases.length} Ready</span>
-        </div>
-        <div class="grid grid-cols-${Math.min(cases.length, 4)} gap-1" id="local-case-buttons">
-          ${cases
-            .map(
-              (tc, idx) => `
-            <button type="button" data-index="${idx}" class="case-btn py-1 px-1 rounded bg-surface-container-highest hover:bg-surface-bright text-[10px] font-mono text-on-surface transition-all active:scale-95 text-center truncate" title="${escapeHtml(typeof tc.input === "string" ? tc.input : JSON.stringify(tc.input))}">
-              Case ${idx + 1}
-            </button>
-          `
-            )
-            .join("")}
-        </div>
-      `;
-      footerContainer.querySelectorAll(".case-btn").forEach((button) => {
-        button.addEventListener("click", () => {
-          const idx = parseInt(button.getAttribute("data-index"), 10) || 0;
-          setSelectedCase(idx);
-          setPopup("cases");
-        });
-      });
-    }
-
-    const runBtn = doc.getElementById("run-local-tests-btn");
-    if (runBtn) {
-      runBtn.setAttribute("type", "button");
-      runBtn.addEventListener("click", () => execute(false));
-    }
-
-    const submitBtn = doc.getElementById("submit-duel-btn");
-    if (submitBtn) {
-      submitBtn.setAttribute("type", "button");
-      const submitLabel = doc.querySelector("#submit-duel-btn > span:last-child");
-      if (submitLabel) submitLabel.textContent = "SUBMIT SOLUTION (Alt+↵)";
-      submitBtn.addEventListener("click", () => execute(true));
-    }
-
-    let finishBtn = doc.getElementById("finish-duel-btn");
-    if (!finishBtn && submitBtn) {
-      finishBtn = doc.createElement("button");
-      finishBtn.id = "finish-duel-btn";
-      finishBtn.type = "button";
-      finishBtn.className = "px-3 py-2 rounded border border-primary-container/40 text-primary-container bg-surface-container font-mono text-xs disabled:opacity-50";
-      finishBtn.textContent = "FINISH";
-      submitBtn.before(finishBtn);
-      finishBtn.addEventListener("click", () => {
-        const state = liveRef.current;
-        if (!state.ownFinished && !state.finalizing && !state.finishing && !busyRef.current && state.remainingTime > 0) setConfirmFinish(true);
-      });
-    }
-    syncEditorState();
-
-    const concedeBtn = doc.getElementById("concede-btn");
-    if (concedeBtn) {
-      concedeBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        setConcede(true);
-      });
-    }
-
-    const chatModal = doc.getElementById("floating-chat-modal");
-    const chatTrigger = doc.getElementById("floating-chat-trigger");
-    const chatCloseBtn = doc.getElementById("chat-close-btn");
-    const chatBadge = doc.getElementById("chat-unread-badge");
-
-    if (chatTrigger) {
-      chatTrigger.addEventListener("click", () => {
-        unreadCountRef.current = 0;
-        if (chatBadge) {
-          chatBadge.classList.add("hidden");
-          chatBadge.textContent = "0";
-        }
-      });
-    }
-
-    const chatForm = doc.getElementById("chat-form");
-    const chatInput = doc.getElementById("chat-input");
-
-    if (chatForm) {
-      chatForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const val = chatInput?.value?.trim();
-        if (val) {
-          sendChatMessage(val);
-          if (chatInput) chatInput.value = "";
-        }
-      });
-    }
-
-    doc.querySelectorAll(".quick-phrase-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const text = btn.innerText.trim();
-        if (text) sendChatMessage(text);
-      });
-    });
-
-    doc.addEventListener("keydown", (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-        event.preventDefault();
-        execute(false);
-      }
-      if (event.altKey && event.key === "Enter") {
-        event.preventDefault();
-        execute(true);
-      }
-    });
-
-    syncEditorState();
-    updateLines();
-  }
-
-  const handleFinish = async () => {
-    setConfirmFinish(false);
+  async function finish() {
+    if (liveRef.current.locked || busyRef.current || finishingRef.current) return;
+    setDialog(null);
+    finishingRef.current = true;
     setFinishing(true);
-    try {
-      const saved = await publishDraft(true);
-      if (!saved) return;
-      await finishBattle();
-    } catch (error) {
-      setDraftError(error.message);
-    } finally {
-      setFinishing(false);
+    setActionError("");
+    try { if (await publishRef.current(true)) await liveRef.current.finishBattle(); }
+    catch (error) { if (mountedRef.current) setActionError(error.message || "Could not finish your solution. Try again."); }
+    finally { finishingRef.current = false; if (mountedRef.current) setFinishing(false); }
+  }
+
+  function editorKeyDown(event) {
+    if (event.key === "Escape") { escapeTabRef.current = true; return; }
+    if (event.key !== "Tab" || locked || busyRef.current) return;
+    if (escapeTabRef.current) { escapeTabRef.current = false; return; }
+    event.preventDefault();
+    const editor = event.currentTarget;
+    const start = editor.selectionStart, end = editor.selectionEnd;
+    const value = editor.value;
+    if (event.shiftKey) {
+      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+      const count = Math.min(4, value.slice(lineStart).match(/^ */)[0].length);
+      updateCode(value.slice(0, lineStart) + value.slice(lineStart + count));
+      requestAnimationFrame(() => editor.setSelectionRange(Math.max(lineStart, start - count), Math.max(lineStart, end - count)));
+    } else if (value.length - (end - start) + 4 <= 20000) {
+      updateCode(value.slice(0, start) + "    " + value.slice(end));
+      requestAnimationFrame(() => editor.setSelectionRange(start + 4, start + 4));
     }
-  };
+  }
 
-  const handleConcede = () => {
-    setConcede(false);
-    forfeitBattle();
-  };
+  const samples = problem?.sampleTestCases || [];
+  const currentSample = samples[selectedCase];
+  const ownCount = submissionResult?.totalCount ?? activeBattle?.ownProgress?.totalTests;
+  const ownPassed = submissionResult?.passedCount ?? activeBattle?.ownProgress?.bestPassed;
+  const opponentCount = opponentProgress?.totalCount ?? activeBattle?.opponentProgress?.totalTests;
+  const opponentPassed = opponentProgress?.passedCount ?? activeBattle?.opponentProgress?.bestPassed;
+  const unread = chatMessages.slice(seenMessages).filter((message) => !message.isSystem && message.from !== user?.username && message.from !== "You").length;
+  const data = execution?.data;
+  const languageInfo = LANGUAGES.find((item) => item.key === language);
+  const savedLabels = { starter: "Starter code", local: "Restored locally", unsaved: "Unsaved changes", saving: "Saving draft…", saved: "Draft saved" };
+  const timer = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`;
+  const dialogTitles = { help: "Your first duel, step by step", chat: "Match chat", reset: "Reset this language’s code?", finish: "Finish coding and start your interview?", forfeit: "Forfeit this duel?" };
 
-  const sampleCases = problem?.sampleTestCases || [];
-
-  if (interview?.entered || activeBattle?.myPhase === "done" || finalizing) return <AIInterview embedded />;
+  if (showInterview) return <AIInterview embedded />;
+  if (!activeBattle) return <section className="ba-empty arena-page-background"><Swords size={35} aria-hidden="true" /><h1>Your next challenge is waiting.</h1><p>Join a duel to open the coding workspace.</p><div><button type="button" onClick={onQueueNext}>Find a duel</button><button type="button" onClick={onExit}>Back to the arena</button></div></section>;
 
   return (
-    <>
-      {(activeBattle?.opponentFinished || ownFinished || finalizing || finishing || draftError) && (
-        <div role="status" aria-live="polite" className="fixed top-[72px] left-1/2 z-[65] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 rounded-lg border border-[#FDDF49]/40 bg-[#1E2020]/95 px-5 py-3 text-sm text-[#FDDF49] shadow-xl">
-          {finalizing ? <p>Evaluating both solutions…</p> : ownFinished ? <p>Evaluating your solution… your interview starts next</p> : finishing ? <p>Finishing your solution…</p> : null}
-          {activeBattle?.opponentFinished && !finalizing && <p>{opponent?.username || "Opponent"} finished with {activeBattle.opponentProgress?.bestPassed ?? opponentProgress?.passedCount ?? 0}/{activeBattle.opponentProgress?.totalTests ?? totalTests}. You have {Math.floor(remainingTime / 60)}:{String(remainingTime % 60).padStart(2, "0")} left.</p>}
-          {draftError && !ownFinished && !finalizing && <p className="mt-1 text-[#e2e2e2]">Draft not saved: {draftError}</p>}
-        </div>
-      )}
-      {disconnectCountdown !== null && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 rounded-lg border border-rose-500/50 bg-[#1a0e10]/95 px-5 py-2.5 text-rose-200 shadow-2xl backdrop-blur-md">
-          <span className="h-2.5 w-2.5 animate-ping rounded-full bg-rose-500" />
-          <span className="text-xs font-semibold">
-            Opponent disconnected. Conceding match to you in{" "}
-            <span className="font-mono font-bold text-white">{disconnectCountdown}s</span> unless they reconnect...
-          </span>
-        </div>
-      )}
+    <section className="coding-arena arena-page-background" data-view={view} aria-label="Live coding duel">
+      <header className="ba-topbar"><div className="ba-brand"><Brand compact /><span className="ba-mode"><Swords size={12} aria-hidden="true" />Ranked 1v1</span></div><ol className="ba-phases" aria-label="Duel stages"><li aria-current="step"><b>1</b>Code</li><ChevronRight size={12} aria-hidden="true" /><li><b>2</b>AI interview</li><ChevronRight size={12} aria-hidden="true" /><li><b>3</b>Results</li></ol><div className="ba-topbar__actions"><span className={`ba-clock${remaining <= 60 ? " is-urgent" : ""}`} role="timer" aria-label={`${remaining} seconds of coding time remaining`}><Clock3 size={14} aria-hidden="true" /><b>{timer}</b><span>left</span></span><button type="button" className="ba-icon-button" onClick={() => setDialog("help")} aria-label="How to play"><CircleHelp size={18} aria-hidden="true" /></button><button type="button" className="ba-icon-button" onClick={() => setDialog("chat")} aria-label={`Match chat${unread ? `, ${unread} unread` : ""}`}><MessageSquare size={17} aria-hidden="true" />{unread > 0 && <i className="ba-unread">{unread}</i>}</button><button type="button" className="ba-icon-button ba-forfeit" onClick={() => setDialog("forfeit")} aria-label="Forfeit duel"><Flag size={15} aria-hidden="true" /></button></div></header>
 
-      <iframe
-        ref={frameRef}
-        src="/battle-arena.html"
-        title="Code Arena 1v1 Battle"
-        onLoad={connectArena}
-        className="block h-dvh w-full border-0 bg-[#121414]"
-      />
+      <div className="ba-match-strip"><div className="ba-contender ba-contender--you"><span className="ba-contender__initial" aria-hidden="true">{(user?.username || "Y").slice(0, 2).toUpperCase()}</span><div><strong title={user?.username}><small>You</small>{user?.username || "You"}</strong><p>{ownCount > 0 && ownPassed != null ? `${ownPassed}/${ownCount} tests passed` : "Your solution starts here"}</p></div></div><span className="ba-match-strip__vs">VS</span><div className="ba-contender ba-contender--opponent"><div><strong title={activeBattle.opponent?.username}>{activeBattle.opponent?.username || "Opponent"}</strong><p>{activeBattle.opponentPhase === "interview" ? "In the AI interview" : activeBattle.opponentFinished ? "Finished coding" : opponentCount > 0 && opponentPassed != null ? `${opponentPassed}/${opponentCount} tests passed` : "Working on the same problem"}</p></div><span className="ba-contender__initial" aria-hidden="true">{(activeBattle.opponent?.username || "O").slice(0, 2).toUpperCase()}</span></div></div>
 
-      {confirmFinish && !locked && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="finish-heading" className="w-full max-w-sm rounded-xl border border-[#FDDF49]/30 bg-[#1E2020] p-6 text-[#e2e2e2] shadow-2xl">
-            <h2 id="finish-heading" className="text-lg font-semibold text-[#FDDF49]">Finish this solution?</h2>
-            <p className="mt-2 text-sm text-[#9A9A9A]">Your latest code will be evaluated against all tests. You cannot edit or submit after finishing.</p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button autoFocus onClick={() => setConfirmFinish(false)} className="rounded bg-white/5 px-4 py-2 text-sm">Keep coding</button>
-              <button onClick={handleFinish} className="rounded bg-[#FDDF49] px-4 py-2 text-sm font-bold text-[#211b00]">Finish</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {concede && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="concede-heading" className="w-full max-w-sm rounded-xl border border-white/10 bg-[#16191c] p-6 shadow-2xl">
-            <h2 id="concede-heading" className="text-lg font-semibold text-white">Forfeit this duel?</h2>
-            <p className="mt-2 text-sm text-[#a7b3ca]">Forfeiting will immediately concede the match. Your opponent will receive the victory.</p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setConcede(false)} className="rounded-md bg-white/5 px-4 py-2 text-xs text-white hover:bg-white/10">Keep playing</button>
-              <button onClick={handleConcede} className="rounded-md bg-[#963c47] px-4 py-2 text-xs text-white hover:bg-[#a84450]">Concede</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {(locked || draftError || actionError || disconnectCountdown !== null || activeBattle.opponentFinished) && <div className="ba-notices" role="status"><CircleAlert size={14} aria-hidden="true" /><div>{ownFinished ? <p>Your code is locked. Preparing your AI interview…</p> : finishing ? <p>Saving and evaluating your final code…</p> : remaining <= 0 ? <p>Coding time is over. Waiting for the server to confirm the next stage…</p> : null}{draftError && !ownFinished && <p>Server draft save failed: {draftError} <button type="button" onClick={() => publishRef.current(true)}>Retry save</button></p>}{actionError && <p>{actionError}</p>}{disconnectCountdown !== null && <p>{disconnectCountdown > 0 ? `Your opponent disconnected. Reconnection time: ${disconnectCountdown}s.` : "Reconnection time ended. Waiting for the server’s decision."}</p>}{activeBattle.opponentFinished && !ownFinished && remaining > 0 && <p>Your opponent finished coding. You can keep working until your timer ends.</p>}</div></div>}
 
-      <dialog
-        ref={popupRef}
-        onCancel={() => setPopup(null)}
-        onClose={() => setPopup(null)}
-        onClick={(event) => {
-          if (event.target === popupRef.current) {
-            const box = popupRef.current.getBoundingClientRect();
-            if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) {
-              setPopup(null);
-            }
-          }
-        }}
-        aria-labelledby="arena-popup-title"
-        className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-xl rounded-xl border border-[#343e50] bg-[#151a23] p-0 text-[#e4eaf5] shadow-2xl backdrop:bg-black/75"
-      >
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-          <h2 id="arena-popup-title" className="text-base font-semibold">
-            {popup === "cases" ? "Sample test cases" : "Evaluation results"}
-          </h2>
-          <button autoFocus onClick={() => setPopup(null)} aria-label="Close popup" className="rounded px-2 py-1 text-lg text-[#a7b3ca] hover:bg-white/5">&times;</button>
-        </div>
+      <nav className="ba-mobile-nav" aria-label="Workspace panels">{[{ key: "problem", icon: BookOpen, label: "Problem" }, { key: "code", icon: Code2, label: "Code" }, { key: "tests", icon: CheckCircle2, label: "Tests" }].map(({ key, icon: Icon, label }) => <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)}><Icon size={14} aria-hidden="true" />{label}{key === "tests" && busy && <LoaderCircle size={12} className="ba-spin" aria-hidden="true" />}</button>)}</nav>
 
-        {popup === "cases" ? (
-          <div className="p-6">
-            <div role="tablist" aria-label="Test cases" className="mb-5 flex gap-2">
-              {sampleCases.map((_, index) => (
-                <button
-                  key={index}
-                  role="tab"
-                  aria-selected={selectedCase === index}
-                  onClick={() => setSelectedCase(index)}
-                  className={`rounded-md border px-4 py-2 text-xs ${selectedCase === index ? "border-[#fddf49]/40 bg-[#fddf49]/10 text-[#fddf49]" : "border-white/10 text-[#a7b3ca] hover:bg-white/5"}`}
-                >
-                  Case {index + 1}
-                </button>
-              ))}
-            </div>
-            <div className="space-y-4 rounded-lg border border-white/10 bg-[#0e131c] p-5">
-              <div>
-                <p className="mb-1.5 text-xs text-[#929bab]">Input</p>
-                <code className="block break-words rounded-md bg-white/[.04] px-3 py-2 text-sm text-[#e4eaf5]">
-                  {typeof sampleCases[selectedCase]?.input === "object" ? JSON.stringify(sampleCases[selectedCase]?.input) : sampleCases[selectedCase]?.input || "(empty)"}
-                </code>
-              </div>
-              <div>
-                <p className="mb-1.5 text-xs text-[#929bab]">Expected output</p>
-                <code className="block break-words rounded-md bg-white/[.04] px-3 py-2 text-sm text-[#94bc9d]">
-                  {sampleCases[selectedCase]?.expectedOutput || sampleCases[selectedCase]?.expected || "(empty)"}
-                </code>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="max-h-[60vh] overflow-y-auto p-6" aria-live="polite">
-            {busy ? (
-              <p className="text-sm text-[#a7b3ca]">Evaluating code in Docker sandbox...</p>
-            ) : executionError ? (
-              <p role="alert" className="whitespace-pre-wrap text-sm text-[#e79aa5]">{executionError}</p>
-            ) : execution ? (
-              <>
-                <p className={`mb-4 text-sm font-semibold ${execution.status === "accepted" ? "text-[#94bc9d]" : "text-[#e79aa5]"}`}>
-                  {execution.status?.toUpperCase()} — {execution.passedCount || 0} of {execution.totalCount || totalTests} tests passed
-                  {execution.timeMs !== undefined && ` (${execution.timeMs}ms)`}
-                </p>
-                {execution.error && <pre className="mb-4 whitespace-pre-wrap break-words text-xs text-[#e79aa5]">{execution.error}</pre>}
-                <div className="space-y-3">
-                  {execution.testResults?.map((test, index) => (
-                    <div key={index} className="rounded-lg border border-white/10 bg-[#0e131c] p-4">
-                      <p className="mb-2 text-xs">Case {index + 1}: <span className={test.passed ? "text-[#94bc9d]" : "text-[#e79aa5]"}>{test.passed ? "Passed" : "Failed"}</span></p>
-                      {test.output !== undefined && <p className="break-words font-mono text-xs text-[#a7b3ca]">Output: {test.output || "(empty)"}</p>}
-                      {(test.expectedOutput !== undefined || test.expected !== undefined) && <p className="mt-1 font-mono text-xs text-[#a7b3ca]">Expected: {test.expectedOutput || test.expected}</p>}
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : null}
-          </div>
-        )}
+      <div className="ba-workspace">
+        <section className="ba-problem ba-panel" aria-labelledby="ba-problem-title"><header className="ba-problem__header"><p className="ba-step-label"><span>01</span>Read the problem</p><div><h1 id="ba-problem-title">{problem?.title || "Loading your challenge…"}</h1>{problem?.difficulty && <span className={`ba-difficulty ba-difficulty--${problem.difficulty}`}>{problem.difficulty}</span>}</div><p className="ba-problem__limits">{typeof problem?.timeLimitMs === "number" && <span>{problem.timeLimitMs / 1000}s time limit</span>}{typeof problem?.memoryLimitMb === "number" && <span>{problem.memoryLimitMb} MB memory</span>}</p></header><div className="ba-section-tabs" aria-label="Problem sections">{["description", "examples", "constraints"].map((tab) => <button key={tab} type="button" aria-pressed={problemTab === tab} onClick={() => setProblemTab(tab)}>{tab === "description" ? "Problem" : tab === "examples" ? "Examples" : "Constraints"}</button>)}</div><div className="ba-problem__body" tabIndex={0} aria-label={`${problemTab} content`}>{problemTab === "description" ? <><h2>What to build</h2><p className="ba-description">{problem?.description || "Your problem statement is loading."}</p><button type="button" className="ba-text-button" onClick={() => setProblemTab("examples")}>See an example<ArrowRight size={13} aria-hidden="true" /></button></> : problemTab === "constraints" ? <><h2>Keep these limits in mind</h2><p className="ba-description">{problem?.constraints || "No extra constraints were provided for this problem."}</p></> : samples.length ? samples.map((sample, index) => <article className="ba-example" key={index}><h2>Example {index + 1}</h2><ValueBlock label="Input" value={sample.input} /><ValueBlock label="Expected output" value={sample.expectedOutput ?? sample.expected} /></article>) : <p>No sample cases were provided.</p>}</div><footer className="ba-problem__tip"><span>Next</span>Choose a language and write your solution.<button type="button" className="ba-text-button" onClick={() => setView("code")}>Open editor<ArrowRight size={12} aria-hidden="true" /></button></footer></section>
 
-        <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4">
-          <button onClick={() => setPopup(null)} className="rounded-md border border-white/10 px-4 py-2 text-xs hover:bg-white/5">Close</button>
+        <div className="ba-coding-column">
+          <section className="ba-editor ba-panel" aria-labelledby="ba-editor-title"><header className="ba-editor__header"><h2 className="ba-step-label" id="ba-editor-title"><span>02</span>Write your solution</h2><div><label className="ba-language-label" htmlFor="ba-language">Language</label><select id="ba-language" aria-label="Coding language" value={language} disabled={locked || busy} onChange={(event) => switchLanguage(event.target.value)}>{LANGUAGES.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}</select><button type="button" className="ba-icon-button" aria-label="Reset code to starter template" disabled={locked || busy} onClick={() => setDialog("reset")}><RotateCcw size={14} aria-hidden="true" /></button></div></header><div className="ba-filebar"><span><Code2 size={12} aria-hidden="true" /><span title={languageInfo.file}>{languageInfo.file}</span></span><span className={`ba-save-status${draftError ? " has-error" : ""}`} role="status">{draftStatus === "saving" ? <LoaderCircle size={10} className="ba-spin" aria-hidden="true" /> : draftStatus === "saved" ? <Check size={11} aria-hidden="true" /> : null}{savedLabels[draftStatus]}</span></div><div className="ba-editor__surface"><pre ref={gutterRef} className="ba-line-numbers" aria-hidden="true">{Array.from({ length: code.split("\n").length }, (_, index) => index + 1).join("\n")}</pre><textarea ref={editorRef} id="ba-code" aria-label={`${languageInfo.label} solution editor`} aria-describedby="ba-editor-help" value={code} readOnly={locked || busy} spellCheck={false} autoCapitalize="off" autoCorrect="off" wrap="off" maxLength={20000} onChange={(event) => updateCode(event.target.value)} onKeyDown={editorKeyDown} onScroll={(event) => { if (gutterRef.current) gutterRef.current.scrollTop = event.currentTarget.scrollTop; }} /></div><div className="ba-editor__hint" id="ba-editor-help"><span>Read input → write your logic → print output.</span><span>Esc, then Tab to leave the editor</span></div></section>
+
+          <section className="ba-tests ba-panel" aria-label="Samples and code results"><header><div className="ba-section-tabs" aria-label="Test panels"><button type="button" aria-pressed={testTab === "samples"} onClick={() => setTestTab("samples")}>Sample cases <span>{samples.length}</span></button><button type="button" aria-pressed={testTab === "results"} onClick={() => setTestTab("results")}>Results{busy && <LoaderCircle size={12} className="ba-spin" aria-hidden="true" />}</button></div><span className="ba-tests__label">03 · Test your code</span></header><div className="ba-tests__body" tabIndex={0} aria-label={testTab === "samples" ? "Sample case details" : "Execution result details"}>{testTab === "samples" ? samples.length ? <><div className="ba-case-select" aria-label="Choose a sample case">{samples.map((_, index) => <button type="button" key={index} aria-pressed={selectedCase === index} onClick={() => setSelectedCase(index)}>Case {index + 1}</button>)}</div><div className="ba-case-values"><ValueBlock label="Input" value={currentSample?.input} /><ValueBlock label="Expected output" value={currentSample?.expectedOutput ?? currentSample?.expected} /></div></> : <p className="ba-test-empty">No samples were provided. Submit your solution to check all tests.</p> : execution?.pending ? <div className="ba-test-state" role="status"><LoaderCircle size={20} className="ba-spin" aria-hidden="true" /><div><strong>{execution.kind === "submit" ? "Checking all tests…" : "Running your sample cases…"}</strong><p>Your code is being evaluated. This may take a moment.</p></div></div> : execution?.error ? <div className="ba-result-error" role="alert"><CircleAlert size={16} aria-hidden="true" /><p>{execution.error}</p></div> : data ? <div className="ba-result" aria-live="polite"><p className={data.status === "accepted" ? "ba-result__success" : "ba-result__failure"}>{data.status === "accepted" ? <CheckCircle2 size={16} aria-hidden="true" /> : <CircleAlert size={16} aria-hidden="true" />}<strong>{STATUS_LABELS[data.status] || data.status?.replaceAll("_", " ") || "Evaluation complete"}</strong>{typeof data.passedCount === "number" && typeof data.totalCount === "number" && <span>{data.passedCount}/{data.totalCount} passed</span>}{typeof data.timeMs === "number" && <small>{data.timeMs} ms</small>}</p>{data.error && <pre className="ba-output-error">{displayValue(data.error)}</pre>}{data.testResults?.map((test, index) => <article className="ba-test-result" key={index}><p>Case {index + 1}<strong className={test.passed ? "ba-result__success" : "ba-result__failure"}>{test.passed ? "Passed" : "Failed"}</strong></p>{test.output !== undefined && <ValueBlock label="Your output" value={test.output} />}{(test.expectedOutput !== undefined || test.expected !== undefined) && <ValueBlock label="Expected" value={test.expectedOutput ?? test.expected} />}{test.error && <pre className="ba-output-error">{displayValue(test.error)}</pre>}</article>)}{execution.kind === "submit" && !data.testResults?.length && <p className="ba-results-note">Submissions check sample and hidden tests. If some fail, you can keep editing and submit again.</p>}{execution.kind === "samples" && data.status === "accepted" && <p className="ba-results-note">Samples passed. Submit your solution to check the hidden tests too.</p>}</div> : <div className="ba-test-state"><Play size={19} aria-hidden="true" /><div><strong>Give your code a first run.</strong><p>Run samples to compare your output with the examples.</p></div></div>}</div></section>
+
+          <footer className="ba-code-actions"><p>Next: explain your code<span>Pass all tests to start your AI interview.</span></p><div><button type="button" className="ba-button ba-button--run" onClick={() => execute(false)} disabled={locked || busy} aria-keyshortcuts="Control+Enter Meta+Enter" title="Run samples (Ctrl+Enter)">{busy && execution?.kind === "samples" ? <LoaderCircle size={14} className="ba-spin" aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}Run samples</button><button type="button" className="ba-button ba-button--primary" onClick={() => execute(true)} disabled={locked || busy} aria-keyshortcuts="Alt+Enter" title="Submit solution (Alt+Enter)">{busy && execution?.kind === "submit" ? <LoaderCircle size={14} className="ba-spin" aria-hidden="true" /> : <Send size={14} aria-hidden="true" />}Submit solution</button></div></footer>
         </div>
-      </dialog>
-    </>
+      </div>
+
+      <footer className="ba-statusbar"><span><span className="ba-status-dot" />{locked ? "Editing locked" : "Coding round"}<span className="ba-statusbar__shortcut">Ctrl + Enter: run · Alt + Enter: submit</span></span><button type="button" disabled={locked || busy} onClick={() => setDialog("finish")}><LockKeyhole size={11} aria-hidden="true" />Finish coding early<ChevronRight size={12} aria-hidden="true" /></button></footer>
+
+      {dialog && <ArenaDialog key={dialog} kind={dialog} title={dialogTitles[dialog]} onClose={() => setDialog(null)}>{dialog === "help" ? <><ol className="ba-guide"><li><b>1</b><div><strong>Read the problem.</strong><p>Check the examples and constraints to understand the expected output.</p></div></li><li><b>2</b><div><strong>Write and test your solution.</strong><p>Choose a language. Run samples as often as needed to check your work.</p></div></li><li><b>3</b><div><strong>Submit when you’re ready.</strong><p>Submit checks all tests. If all pass, your code locks and the AI interview starts. If some fail, keep improving it.</p></div></li><li><b>4</b><div><strong>Explain your approach.</strong><p>Answer questions about your code in the AI interview. You can also finish coding early; this locks and evaluates your current code.</p></div></li></ol><footer><button type="button" className="ba-button ba-button--primary" onClick={() => setDialog(null)}>Let’s code<ArrowRight size={14} aria-hidden="true" /></button></footer></> : dialog === "chat" ? <><div className="ba-chat-stream" aria-live="polite">{chatMessages.length ? chatMessages.map((message, index) => <article key={index} className={`ba-chat-message${message.isSystem ? " is-system" : message.from === user?.username || message.from === "You" ? " is-own" : ""}`}><strong>{message.isSystem ? "Match notice" : message.from === user?.username ? "You" : message.from}</strong><p>{message.text}</p></article>) : <div className="ba-chat-empty"><MessageSquare size={25} aria-hidden="true" /><strong>A little sportsmanship goes a long way.</strong><p>Say hello to {activeBattle.opponent?.username || "your opponent"}.</p></div>}<div ref={chatEndRef} /></div><form className="ba-chat-form" onSubmit={(event) => { event.preventDefault(); const text = chatInput.trim(); if (!text) return; sendChatMessage(text); setChatInput(""); }}><label className="ba-sr-only" htmlFor="ba-chat-input">Message your opponent</label><input id="ba-chat-input" data-initial-focus value={chatInput} onChange={(event) => setChatInput(event.target.value)} maxLength={500} placeholder="Message your opponent…" autoComplete="off" /><button type="submit" className="ba-button ba-button--primary" disabled={!chatInput.trim()} aria-label="Send message"><Send size={15} aria-hidden="true" /></button></form></> : <><div className="ba-dialog__copy">{dialog === "finish" ? <p>Your latest code will be evaluated against all tests, then your AI interview begins. <strong>You won’t be able to edit or resubmit after finishing.</strong></p> : dialog === "reset" ? <p>This replaces your {languageInfo.label} code with its starter template. Your code in the other languages stays saved.</p> : <p>Forfeiting ends this duel and gives your opponent the victory. This cannot be undone.</p>}</div><footer><button type="button" data-initial-focus className="ba-button" onClick={() => setDialog(null)}>{dialog === "reset" ? "Keep my code" : "Keep coding"}</button><button type="button" className={`ba-button${dialog === "forfeit" ? " ba-button--danger" : " ba-button--primary"}`} onClick={() => { if (dialog === "finish") finish(); else if (dialog === "reset") { updateCode(starterFor(problem, language)); setDialog(null); } else { setDialog(null); forfeitBattle((message) => setActionError(message)); } }}>{dialog === "finish" ? "Finish & interview" : dialog === "reset" ? "Reset code" : "Forfeit duel"}</button></footer></>}</ArenaDialog>}
+    </section>
   );
 }

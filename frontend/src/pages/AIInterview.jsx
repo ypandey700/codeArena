@@ -329,9 +329,9 @@ export default function AIInterview({ embedded = false }) {
     if (done || finalizing || thinking) stopMedia();
   }, [done, finalizing, thinking]);
 
-  if (!activeBattle) return <div className="min-h-[calc(100vh-64px)] bg-[#111414] p-8 text-center text-[#fddf49]"><p>No active interview. Resume your duel from the battle room.</p><Link to="/dashboard" className="mt-4 inline-block underline">Back to Command Deck</Link></div>;
+  if (!activeBattle) return <div className="arena-page-background min-h-[calc(100vh-64px)] p-8 text-center text-[#fddf49]"><p>No active interview. Resume your duel from the battle room.</p><Link to="/dashboard" className="mt-4 inline-block underline">Back to Command Deck</Link></div>;
 
-  return <div className="min-h-[calc(100vh-64px)] bg-[#111414] px-4 py-6 sm:px-6 sm:py-8">
+  return <div className="arena-page-background min-h-[calc(100vh-64px)] px-4 py-6 sm:px-6 sm:py-8">
     <section className="mx-auto max-w-[1000px] rounded-xl border border-[#fddf49]/30 bg-[#1e2020] p-4 shadow-[0_12px_50px_#00000020] sm:p-5">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fddf49]/20"><span className="h-4 w-4 rounded-full bg-[#fddf49] shadow-[0_0_14px_#fddf4940]" /></span><div><h1 className="text-sm font-semibold tracking-wide text-[#f2f2f2]">DR. EVELYN VANCE <span className="ml-2 text-[11px] font-normal text-[#fddf49]">/ AI CODE ARBITER</span></h1><p className="mt-1 text-[11px] text-[#a6a6a1]">{activeBattle.problem?.title || "1v1 Duel"} / {done ? "Interview complete" : Number.isInteger(step) ? `Question ${step + 1} of ${total ?? "—"}` : "Preparing interview"}</p></div></div><span className="rounded-md border border-[#fddf49]/20 bg-[#fddf49]/10 px-3 py-1.5 text-[10px] font-medium text-[#fddf49]">{finalizing ? "SCORING" : done ? "WAITING FOR OPPONENT" : "AI INTERVIEW"}</span></header>
       <p className="mb-4 flex items-center gap-2 text-[11px] text-[#94bc9d]"><CheckCircle2 size={13} />Your solution / {testsPassed ?? "—"} of {testsTotal ?? "—"} tests passed</p>

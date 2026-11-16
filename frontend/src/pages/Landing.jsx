@@ -135,7 +135,7 @@ export default function Landing() {
   const login = () => { closeMenu(); openLogin(); };
 
   return (
-    <div className="arena-landing" id="home">
+    <div className="arena-landing arena-page-background" id="home">
       <header className="lp-header" onKeyDown={(event) => { if (event.key === "Escape") closeMenu(); }}>
         <div className="lp-header__inner"><a href="#home" onClick={closeMenu} aria-label="Code Arena home"><Brand /></a><nav className="lp-header__links" aria-label="Main navigation"><a href="#arena">The arena</a><a href="#how-it-works">How it works</a><a href="#ai-interview">The AI interview <span>↗</span></a></nav><div className="lp-header__actions"><button type="button" className="lp-sign-in" onClick={login}>Sign in</button><button type="button" className="lp-button lp-button--small" onClick={signup}>Enter the arena <ArrowUpRight size={14} aria-hidden="true" /></button></div><button type="button" className="lp-menu-toggle" aria-label={mobileNav ? "Close navigation" : "Open navigation"} aria-expanded={mobileNav} aria-controls="lp-mobile-nav" onClick={() => setMobileNav((value) => !value)}>{mobileNav ? <X size={22} /> : <Menu size={22} />}</button></div>
         {mobileNav && <nav id="lp-mobile-nav" className="lp-mobile-nav" aria-label="Mobile navigation"><a href="#arena" onClick={closeMenu}>The arena <ArrowUpRight size={15} /></a><a href="#how-it-works" onClick={closeMenu}>How it works <ArrowUpRight size={15} /></a><a href="#ai-interview" onClick={closeMenu}>The AI interview <ArrowUpRight size={15} /></a><div><button type="button" onClick={login}>Sign in</button><button type="button" onClick={signup}>Enter the arena <ArrowRight size={15} /></button></div></nav>}

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useBattle } from "../context/BattleContext";
 import {
-  CheckCircle2, Clock3, Code2, Cpu, Gem, LoaderCircle,
-  Minimize2, Shield, Swords, Trophy, Users, X,
+  ArrowRight, Check, Clock3, Code2, LoaderCircle, MessageSquare,
+  Minimize2, Search, Swords, UserRound, X,
 } from "lucide-react";
+import "./MatchmakingQueue.css";
 
 let matchmakingAudio = null;
 
@@ -40,13 +41,21 @@ async function playTone(frequency = 660, duration = 0.18, volume = 0.12) {
 
 export function QueueOverlay({ onMinimize, onClose }) {
   const { user } = useAuth();
-  const { queueTime, playersInQueue, leaveQueue, setDuelState } = useBattle();
-  const frameRef = useRef(null);
+  const { queueTime, leaveQueue, setDuelState } = useBattle();
+  const panelRef = useRef(null);
+  const minimizeRef = useRef(null);
+  const cancelRef = useRef(null);
+  const [failedAvatar, setFailedAvatar] = useState(null);
+  const username = user?.username || "You";
+  const hasRating = user?.rating != null && Number.isFinite(Number(user.rating));
+  const elapsed = Number.isFinite(queueTime) ? Math.max(0, Math.floor(queueTime)) : 0;
+  const minutes = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const seconds = String(elapsed % 60).padStart(2, "0");
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     leaveQueue();
     onClose?.();
-  };
+  }, [leaveQueue, onClose]);
 
   const handleMinimize = () => {
     setDuelState("minimized");
@@ -54,77 +63,95 @@ export function QueueOverlay({ onMinimize, onClose }) {
   };
 
   useEffect(() => {
-    const keydown = (event) => {
-      if (event.key === "Escape") handleClose();
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+      }
     };
-    window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
   }, []);
 
   useEffect(() => {
-    const doc = frameRef.current?.contentDocument;
-    if (!doc) return;
-    const minutes = doc.getElementById("queue-timer-minutes");
-    const seconds = doc.getElementById("queue-timer-seconds");
-    if (minutes) minutes.textContent = String(Math.floor(queueTime / 60)).padStart(2, "0");
-    if (seconds) seconds.textContent = String(queueTime % 60).padStart(2, "0");
-  }, [queueTime]);
-
-  function connectQueue() {
-    const doc = frameRef.current?.contentDocument;
-    if (!doc) return;
-    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      if (walker.currentNode.parentElement.closest("script, style")) continue;
-      walker.currentNode.textContent = walker.currentNode.textContent.replaceAll("Player", user?.username || "You");
-    }
-    const wins = user?.stats?.wins || 0;
-    const losses = user?.stats?.losses || 0;
-    doc.querySelectorAll('[data-user-rating]').forEach((el) => { el.textContent = user?.rating ?? 1200; });
-    doc.querySelectorAll('[data-user-winrate]').forEach((el) => { el.textContent = `${wins + losses ? Math.round(wins / (wins + losses) * 100) : 0}%`; });
-    doc.querySelectorAll('[data-user-record]').forEach((el) => { el.textContent = `${wins}W / ${losses}L`; });
-    doc.querySelectorAll('[data-user-streak]').forEach((el) => { el.textContent = user?.stats?.streak || 0; });
-    const cancelBtn = doc.getElementById("cancel-queue-action");
-    if (cancelBtn) {
-      cancelBtn.addEventListener("click", (e) => {
-        e.preventDefault();
+    const keydown = (event) => {
+      if (event.defaultPrevented || (event.target instanceof Element && event.target.closest("dialog[open]"))) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
         handleClose();
-      });
-    }
-    doc.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") handleClose();
-    });
-  }
+      }
+      if (event.key === "Tab") {
+        const first = minimizeRef.current;
+        const last = cancelRef.current;
+        if (!panelRef.current?.contains(document.activeElement) || document.activeElement === panelRef.current) {
+          event.preventDefault();
+          (event.shiftKey ? last : first)?.focus();
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, [handleClose]);
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-16 z-[45] bg-[#0d0f11]">
-      <iframe
-        ref={frameRef}
-        src="/matchmaking-queue.html"
-        title="Matchmaking queue"
-        onLoad={connectQueue}
-        className="h-full w-full border-0"
-      />
-      <div className="absolute bottom-4 right-4 flex items-center gap-3 rounded-lg border border-white/10 bg-[#16191c]/90 px-4 py-2.5 shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-2 font-mono text-xs text-[#9299a7]">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>{playersInQueue} in queue</span>
+    <section ref={panelRef} className="matchmaking-queue arena-page-background" role="dialog" aria-modal="true" aria-labelledby="queue-heading" aria-describedby="queue-description" tabIndex={-1}>
+      <div className="mq-wrap">
+        <header className="mq-header">
+          <div className="mq-header__label"><Swords size={18} aria-hidden="true" /><span>Live matchmaking</span><span className="mq-mode">Ranked 1v1</span></div>
+          <button ref={minimizeRef} type="button" className="mq-minimize" onClick={handleMinimize}><Minimize2 size={15} aria-hidden="true" />Minimize</button>
+        </header>
+
+        <div className="mq-intro">
+          <div>
+            <p className="mq-eyebrow"><span />The search is on</p>
+            <h1 id="queue-heading">Your next rival.<br /><em>One search away.</em></h1>
+            <p id="queue-description">A new challenge is on the horizon. Stay ready to accept your duel.</p>
+          </div>
+          <div className="mq-timer"><span><Clock3 size={13} aria-hidden="true" />Time in queue</span><span className="mq-timer__value" role="timer" aria-label={`${Math.floor(elapsed / 60)} minutes, ${elapsed % 60} seconds in queue`}>{minutes}<b>:</b>{seconds}</span><small>We’ll let you know when there’s a match.</small></div>
         </div>
-        <div className="h-4 w-px bg-white/10" />
-        <button
-          onClick={handleMinimize}
-          className="rounded px-3 py-1.5 text-xs text-[#aab1bf] hover:bg-white/5 hover:text-white"
-        >
-          Minimize
-        </button>
-        <button
-          onClick={handleClose}
-          className="rounded border border-red-500/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
-        >
-          Cancel Queue
-        </button>
+
+        <div className="mq-matchup">
+          <article className="mq-player">
+            <div className="mq-card-heading"><span>Your corner</span><span className="mq-ready"><Check size={12} aria-hidden="true" />In queue</span></div>
+            <div className="mq-avatar">
+              {user?.avatar && failedAvatar !== user.avatar ? <img src={user.avatar} alt="" onError={() => setFailedAvatar(user.avatar)} /> : username.slice(0, 2).toUpperCase()}
+            </div>
+            <h2 title={username}>{username}</h2>
+            {(user?.tier || hasRating) && <p className="mq-player__rank">{user?.tier && <span>{user.tier}</span>}{hasRating && <strong>{Number(user.rating).toLocaleString()} <small>RR</small></strong>}</p>}
+            <div className="mq-player__footer"><Code2 size={15} aria-hidden="true" /><span>Ready for a new challenge</span></div>
+          </article>
+
+          <div className="mq-signal" aria-hidden="true">
+            <div className="mq-radar"><span className="mq-radar__ring mq-radar__ring--outer" /><span className="mq-radar__ring mq-radar__ring--middle" /><span className="mq-radar__ring mq-radar__ring--inner" /><span className="mq-radar__sweep" /><span className="mq-radar__core"><Swords size={30} strokeWidth={1.5} /></span></div>
+            <span className="mq-signal__caption">Finding your next duel<span>•••</span></span>
+          </div>
+
+          <article className="mq-opponent" aria-labelledby="queue-opponent-heading">
+            <div className="mq-card-heading"><span>Opponent’s corner</span><Search size={14} aria-hidden="true" /></div>
+            <div className="mq-opponent__avatar" aria-hidden="true"><UserRound size={32} strokeWidth={1.3} /><span><Search size={13} /></span></div>
+            <h2 id="queue-opponent-heading" role="status"><LoaderCircle size={15} className="mq-spin" aria-hidden="true" />Searching for an opponent</h2>
+            <p>Your rival will appear here<br />once a match is found.</p>
+            <div className="mq-opponent__footer"><span />Still looking. Stay sharp.</div>
+          </article>
+        </div>
+
+        <ol className="mq-steps" aria-label="Duel stages">
+          <li className="mq-steps__active" aria-current="step"><span className="mq-step-icon"><Search size={17} aria-hidden="true" /></span><div><small>01 · Right now</small><strong>Find your opponent</strong></div><ArrowRight size={15} className="mq-step-arrow" aria-hidden="true" /></li>
+          <li><span className="mq-step-icon"><Swords size={17} aria-hidden="true" /></span><div><small>02 · Up next</small><strong>Accept your duel</strong></div><ArrowRight size={15} className="mq-step-arrow" aria-hidden="true" /></li>
+          <li><span className="mq-step-icon"><MessageSquare size={17} aria-hidden="true" /></span><div><small>03 · Bring your best</small><strong>Code + AI interview</strong></div></li>
+        </ol>
+
+        <footer className="mq-footer"><p>You can minimize this screen and keep exploring.<br /><span>Your search will continue in the background.</span></p><button ref={cancelRef} type="button" className="mq-cancel" onClick={handleClose} aria-keyshortcuts="Escape"><X size={15} aria-hidden="true" />Cancel search<kbd>Esc</kbd></button></footer>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -254,16 +281,7 @@ export function MatchFound({ onClose, onAccepted }) {
   const lossDelta = `${ratingPreview.loss}`;
 
   return (
-    <section className="match-found-screen relative isolate min-h-[calc(100vh-64px)] overflow-hidden bg-[#0d0f11] text-[#e5e7eb]">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          backgroundImage:
-            "radial-gradient(ellipse at 20% 45%,#fddf4914,transparent 60%),radial-gradient(ellipse at 100% 65%,#ac253214,transparent 60%),radial-gradient(#ffffff0a 1px, transparent 1px)",
-          backgroundSize: "auto,auto,24px 24px",
-        }}
-      />
+    <section className="match-found-screen arena-page-background relative isolate min-h-[calc(100vh-64px)] overflow-hidden text-[#e5e7eb]">
       <div className="mx-auto flex max-w-[1080px] flex-col gap-4 px-4 py-4 sm:px-4 sm:py-5">
         <header className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/[.06] bg-[#0c0e10] p-4">
           <div className="flex items-center gap-4">

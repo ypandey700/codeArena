@@ -1,228 +1,112 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
-  Activity,
-  Award,
-  BarChart3,
-  Calendar,
-  CheckCircle2,
-  Clock3,
-  Code2,
-  Copy,
-  Database,
-  GraduationCap,
-  ShieldCheck,
-  Swords,
-  Trophy,
-  UserPlus,
-  Users,
-  Zap,
+  ArrowLeft, Award, CalendarDays, Check,
+  CheckCircle2, CircleAlert, Code2, Copy, Flame, GraduationCap,
+  Layers, LoaderCircle, LockKeyhole, Pencil, RotateCcw, ShieldCheck,
+  Sparkles, Swords, Target, Trophy, Users,
 } from "lucide-react";
+import "./ProfileDashboard.css";
 
-const LANGUAGE_LABELS = {
-  python: "Python 3",
-  javascript: "JavaScript",
-  cpp: "C++",
-  java: "Java",
+const LANGUAGE_LABELS = { python: "Python", javascript: "JavaScript", cpp: "C++", java: "Java" };
+const LANGUAGE_COLORS = { python: "#e4ce74", javascript: "#a6c6ad", cpp: "#9dbbcc", java: "#c4abce" };
+const number = (value) => typeof value === "number" && Number.isFinite(value) ? value.toLocaleString() : "—";
+const date = (value, options = { month: "short", year: "numeric" }) => {
+  const parsed = value ? new Date(value) : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleDateString(undefined, options) : null;
 };
 
-export default function ProfileDashboard({ profileUser, isOwnProfile, recentSubmissions, submissionsLoading, onEdit }) {
-  const [copied, setCopied] = useState(false);
-  const stats = profileUser.stats || {};
-  const wins = stats.wins || 0;
-  const losses = stats.losses || 0;
-  const solved = stats.problemsSolved || 0;
-  const submissionCount = stats.submissions || 0;
-  const totalMatches = wins + losses;
-  const winRate = totalMatches ? Math.round((wins / totalMatches) * 1000) / 10 : 0;
-  const rating = profileUser.rating ?? 1200;
-  const xp = profileUser.xp || 0;
-  const level = Math.floor(xp / 500) + 1;
-  const currentLevelXp = xp % 500;
-  const levelProgress = Math.min(100, (currentLevelXp / 500) * 100);
-  const friendsCount = profileUser.friends?.length || 0;
-  const joined = profileUser.createdAt
-    ? new Date(profileUser.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-    : "—";
-  const lastSeen = profileUser.lastSeen
-    ? new Date(profileUser.lastSeen).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    : "Recently";
-
-  const languages = useMemo(() => {
-    const counts = recentSubmissions.reduce((result, submission) => {
-      const key = submission.language;
-      if (key) result[key] = (result[key] || 0) + 1;
-      return result;
-    }, {});
-    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    const total = entries.reduce((sum, [, count]) => sum + count, 0);
-    return entries.map(([key, count]) => ({ key, count, percent: total ? Math.round((count / total) * 100) : 0 }));
-  }, [recentSubmissions]);
-
-  const averageRuntime = recentSubmissions.length
-    ? (recentSubmissions.reduce((sum, item) => sum + (item.executionTimeMs || 0), 0) / recentSubmissions.length).toFixed(1)
-    : null;
-
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <div className="profile-dashboard mx-auto w-full max-w-[1280px] px-4 pb-8 pt-6 sm:px-6">
-      <section className="relative overflow-hidden rounded-lg border border-white/[.06] bg-[#16191c]">
-        <div className="profile-hero-cover relative h-28 overflow-hidden sm:h-36">
-          <div className="absolute inset-0 bg-gradient-to-t from-[#18191b] via-[#18191b]/35 to-transparent" />
-          <div className="absolute right-5 top-5 flex items-center gap-2 rounded-md border border-white/[.08] bg-[#16191c]/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant backdrop-blur-sm sm:right-8">
-            <span className={`h-2 w-2 rounded-full ${profileUser.isOnline ? "animate-pulse bg-primary" : "bg-[#6B7280]"}`} />
-            {profileUser.isOnline ? "Arena presence active" : `Last seen ${lastSeen}`}
-          </div>
-        </div>
-
-        <div className="relative -mt-10 px-4 pb-5 sm:-mt-12 sm:px-6">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
-              <div className="relative h-20 w-20 shrink-0 rounded-lg border border-primary/60 bg-[#16191c] p-1 shadow-[0_0_24px_rgba(197,161,122,.13)] sm:h-24 sm:w-24">
-                {profileUser.avatar ? (
-                  <img src={profileUser.avatar} alt={`${profileUser.username}'s avatar`} className="h-full w-full rounded-md object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center rounded-md bg-[#0d1115] text-2xl font-semibold uppercase text-[#fddf49]">{profileUser.username.charAt(0)}</div>
-                )}
-                <span className="absolute -bottom-2 -right-2 flex items-center gap-1 rounded-sm bg-primary px-2 py-1 text-[8px] font-semibold uppercase tracking-wide text-[#261f18]"><Trophy size={11} /> Arena member</span>
-              </div>
-
-              <div className="min-w-0 pb-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-sm bg-[#24292f] px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-[#fddf49]"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> Code Arena</span>
-                  <span className="rounded-sm bg-[#16191c] px-2 py-1 text-[9px] font-semibold text-on-surface-variant">{isOwnProfile ? "Your profile" : "Player profile"}</span>
-                </div>
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <h1 className="break-all text-xl font-semibold tracking-tight text-on-surface sm:text-2xl">{profileUser.username}</h1>
-                  <span className="font-mono text-sm text-muted">{rating} RR</span>
-                </div>
-                {profileUser.bio && <p className="mt-1.5 max-w-3xl text-sm leading-6 text-on-surface-variant">{profileUser.bio}</p>}
-                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-muted">
-                  {profileUser.college && <span className="inline-flex items-center gap-1.5"><GraduationCap size={13} />{profileUser.college}</span>}
-                  <span className="inline-flex items-center gap-1.5"><Calendar size={12} />Joined {joined}</span>
-                  <span className="inline-flex items-center gap-1.5"><Users size={12} />{friendsCount} {friendsCount === 1 ? "friend" : "friends"}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              {isOwnProfile && <button type="button" onClick={onEdit} className="order-1 inline-flex h-9 items-center gap-2 rounded-md border border-white/10 bg-[#16191c] px-3.5 text-xs font-semibold text-on-surface transition hover:border-primary/30 hover:text-[#fddf49]"><Code2 size={14} />Edit profile</button>}
-              <button type="button" disabled title="Live duels are not available yet" className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-xs font-semibold text-[#261f18] opacity-75"><Swords size={16} />Challenge to 1v1 duel</button>
-              <button type="button" disabled title="Live spectating is not available yet" className="inline-flex h-9 items-center gap-2 rounded-md bg-[#16191c] px-3.5 text-xs font-semibold text-on-surface-variant opacity-70"><Activity size={15} />Spectate Live</button>
-              {!isOwnProfile && <button type="button" disabled title="Friend requests are coming soon" className="flex h-9 w-9 items-center justify-center rounded-md bg-[#16191c] text-on-surface-variant opacity-70" aria-label="Add friend"><UserPlus size={17} /></button>}
-              <button type="button" onClick={handleShare} className="flex h-9 w-9 items-center justify-center rounded-md bg-[#16191c] text-on-surface-variant transition hover:text-[#fddf49]" aria-label="Copy profile link"><Copy size={15} /></button>
-              {copied && <span role="status" className="text-[10px] text-[#fddf49]">Link copied</span>}
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:gap-3">
-            <TelemetryCard label="Win rate" value={`${winRate}%`} detail={`${wins}W – ${losses}L (${totalMatches} total)`} icon={BarChart3} />
-            <TelemetryCard label="Arena level" value={`Level ${level}`} detail={`${currentLevelXp} / 500 XP this level`} icon={Zap} highlight />
-            <TelemetryCard label="Submissions" value={submissionCount.toLocaleString()} detail={`${solved.toLocaleString()} problems solved`} icon={Database} />
-            <TelemetryCard label="Arena MMR" value={`${rating.toLocaleString()} RR`} detail="Current rating" icon={Trophy} highlight />
-          </div>
-        </div>
-      </section>
-
-      <div className="mt-5 grid gap-4 xl:grid-cols-[1.8fr_.9fr]">
-        <section className="rounded-lg border border-white/[.06] bg-[#16191c] p-4 sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><h2 className="text-sm font-semibold text-on-surface sm:text-base">Arena Progression</h2><p className="mt-1 text-[10px] text-muted">Current MMR and experience level</p></div>
-            <span className="rounded-sm bg-[#fddf49]/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-[#fddf49]">Level {level}</span>
-          </div>
-
-          <div className="mt-5 grid gap-5 md:grid-cols-[1fr_1.1fr] md:items-center">
-            <div className="rounded-md border border-white/[.05] bg-[#0d1115] p-4 sm:p-5">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted">Arena rating</p>
-              <div className="mt-1 flex items-end gap-2"><span className="font-mono text-xl font-semibold tracking-tight text-[#fddf49] sm:text-2xl">{rating.toLocaleString()}</span><span className="pb-1 text-xs font-semibold text-muted">RR</span></div>
-              <div className="mt-4 flex items-center gap-2 border-t border-white/[.06] pt-3 text-[10px] text-on-surface-variant"><ShieldCheck size={13} className="text-[#fddf49]" />Rating recorded on your Arena profile</div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-on-surface">Level {level} progression</p><p className="mt-0.5 text-[10px] text-muted">{currentLevelXp} XP earned toward the next level</p></div><span className="shrink-0 font-mono text-xs font-semibold text-[#fddf49]">{Math.round(levelProgress)}%</span></div>
-              <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#24292f]"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${levelProgress}%` }} /></div>
-              <div className="mt-2 flex justify-between font-mono text-[9px] text-muted"><span>{currentLevelXp} XP</span><span>{500 - currentLevelXp} XP to Level {level + 1}</span></div>
-              <p className="mt-5 rounded-md bg-[#16191c] p-3 text-[10px] leading-5 text-on-surface-variant">Complete coding challenges and ranked matches to earn XP and build your profile.</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="flex flex-col rounded-lg border border-white/[.06] bg-[#16191c] p-4 sm:p-5">
-          <div className="flex items-center justify-between"><div><h2 className="text-sm font-semibold text-on-surface sm:text-base">Player Snapshot</h2><p className="mt-1 text-[10px] text-muted">Profile facts and combat record</p></div><Trophy size={17} className="text-[#fddf49]" /></div>
-          <div className="mt-4 grid flex-1 grid-cols-2 gap-2">
-            <SnapshotTile label="Matches" value={totalMatches} />
-            <SnapshotTile label="Win rate" value={`${winRate}%`} />
-            <SnapshotTile label="Friends" value={friendsCount} />
-            <SnapshotTile label="Badges" value={profileUser.badges?.length || 0} />
-          </div>
-          <div className="mt-3 flex items-center justify-between border-t border-white/[.06] pt-3 text-[10px] text-muted"><span>Member since</span><span className="font-mono text-on-surface-variant">{joined}</span></div>
-        </section>
-      </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <section className="rounded-lg border border-white/[.06] bg-[#16191c] p-4 sm:p-5">
-          <div className="flex items-start justify-between"><div><h2 className="text-sm font-semibold text-on-surface sm:text-base">Recent Languages</h2><p className="mt-1 text-[10px] text-muted">Based on recent submissions</p></div><Code2 size={17} className="text-on-surface-variant" /></div>
-          {languages.length ? <div className="mt-5 space-y-4">{languages.map((item) => <div key={item.key}><div className="mb-1.5 flex items-center justify-between gap-3 text-[10px]"><span className="font-semibold text-on-surface">{LANGUAGE_LABELS[item.key] || item.key}</span><span className="font-mono text-muted">{item.count} recent {item.count === 1 ? "submission" : "submissions"} <b className="ml-1 text-[#fddf49]">{item.percent}%</b></span></div><div className="h-1.5 overflow-hidden rounded-full bg-[#24292f]"><div className="h-full rounded-full bg-primary" style={{ width: `${item.percent}%` }} /></div></div>)}</div> : <EmptyPanel icon={Code2} text={submissionsLoading ? "Loading recent language activity…" : isOwnProfile ? "Your language breakdown will appear after your next code submission." : "Public language activity is not available for this profile yet."} />}
-          <div className="mt-5 flex items-center justify-between border-t border-white/[.06] pt-3 text-[9px] text-muted"><span>Supported Arena runtimes</span><span className="font-mono text-on-surface-variant">Python · JavaScript · C++ · Java</span></div>
-        </section>
-
-        <section className="rounded-lg border border-white/[.06] bg-[#16191c] p-4 sm:p-5">
-          <div className="flex items-center justify-between"><div><h2 className="text-sm font-semibold text-on-surface sm:text-base">Algorithmic Combat Attributes</h2><p className="mt-1 text-[10px] text-muted">Performance from recorded profile stats</p></div><Activity size={17} className="text-[#fddf49]" /></div>
-          <div className="mt-5 space-y-4">
-            <MetricBar label="Match win rate" value={`${winRate}%`} percent={winRate} />
-            <MetricBar label="Problems solved" value={solved.toLocaleString()} percent={submissionCount ? Math.min(100, (solved / submissionCount) * 100) : 0} />
-            <MetricBar label="Submissions recorded" value={submissionCount.toLocaleString()} percent={submissionCount ? 100 : 0} />
-            <MetricBar label="Experience level" value={`Level ${level}`} percent={levelProgress} />
-          </div>
-          <p className="mt-5 flex items-center gap-2 rounded-md bg-[#16191c] p-3 text-[10px] leading-5 text-muted"><Zap size={14} className="shrink-0 text-[#fddf49]" />Stats reflect the data currently saved to this Arena profile.</p>
-        </section>
-      </div>
-
-      <section className="mt-4 rounded-lg border border-white/[.06] bg-[#16191c] p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="flex items-center gap-2 text-sm font-semibold text-on-surface sm:text-base">Recent Submissions <span className="h-2 w-2 rounded-full bg-primary" /></h2><p className="mt-1 text-[10px] text-muted">Latest code activity recorded on this profile</p></div>
-          <span className="rounded-sm bg-[#16191c] px-2 py-1 font-mono text-[9px] text-muted">{submissionCount.toLocaleString()} total</span>
-        </div>
-        {recentSubmissions.length ? <div className="mt-4 space-y-2">{recentSubmissions.map((submission) => <SubmissionRow key={submission._id} submission={submission} />)}</div> : <EmptyPanel icon={Database} text={submissionsLoading ? "Loading recent submissions…" : isOwnProfile ? "No submissions yet. Your first solve will appear here." : "Submission history is only visible to the account owner."} />}
-        {recentSubmissions.length > 0 && <p className="mt-4 text-right text-[9px] text-muted">Showing {recentSubmissions.length} latest submissions</p>}
-      </section>
-
-      <section className="mt-4 rounded-lg border border-white/[.06] bg-[#16191c] p-4 sm:p-5">
-        <div className="flex items-center justify-between"><div><h2 className="text-sm font-semibold text-on-surface sm:text-base">Arena Achievements</h2><p className="mt-1 text-[10px] text-muted">Badges earned on this profile</p></div><span className="font-mono text-[10px] text-muted">{profileUser.badges?.length || 0} unlocked</span></div>
-        {profileUser.badges?.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{profileUser.badges.map((badge, index) => <article key={`${badge}-${index}`} className="flex items-center gap-3 rounded-md border border-white/[.05] bg-[#0d1115] p-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-[#fddf49]/10 text-[#fddf49]"><Award size={17} /></span><div className="min-w-0"><h3 className="truncate text-xs font-semibold text-on-surface">{badge}</h3><p className="mt-0.5 text-[9px] text-muted">Arena achievement</p></div></article>)}</div> : <EmptyPanel icon={Award} text="No badges unlocked yet. Keep playing to earn your first Arena achievement." />}
-      </section>
-    </div>
-  );
+export function PlayerAvatar({ user, className = "" }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [user.avatar]);
+  return <span className={`pp-avatar ${className}`}>{user.avatar && !failed ? <img src={user.avatar} alt={`${user.username}'s avatar`} onError={() => setFailed(true)} /> : <span aria-label={`${user.username}'s initials`}>{user.username?.slice(0, 2).toUpperCase() || "CA"}</span>}</span>;
 }
 
-function TelemetryCard({ label, value, detail, icon: Icon, highlight = false }) {
-  return <div className="flex min-h-[86px] items-center justify-between gap-2 rounded-md border border-white/[.04] bg-[#16191c] p-3 sm:p-3.5"><div className="min-w-0"><p className="text-[8px] font-semibold uppercase tracking-[.12em] text-muted sm:text-[9px]">{label}</p><p className={`mt-1 truncate font-mono text-sm font-semibold leading-none sm:text-base ${highlight ? "text-[#fddf49]" : "text-on-surface"}`}>{value}</p><p className="mt-1 truncate text-[8px] text-on-surface-variant sm:text-[9px]">{detail}</p></div><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-[#16191c] ${highlight ? "text-[#fddf49]" : "text-on-surface-variant"}`}><Icon size={15} /></span></div>;
+function PlayerCrest() {
+  return <svg className="pp-crest" viewBox="0 0 280 240" fill="none" aria-hidden="true" focusable="false"><circle cx="140" cy="120" r="108" stroke="#fddf4920" /><circle cx="140" cy="120" r="94" stroke="#fddf491e" strokeDasharray="2 9" /><path d="M140 4v18m0 196v18M24 120h18m196 0h18" stroke="#fddf4940" /><path d="m140 34 70 26v61c0 43-35 65-70 85-35-20-70-42-70-85V60Z" fill="#fddf4904" stroke="#e1ce7045" /><path d="m140 47 58 22v52c0 34-28 54-58 72-30-18-58-38-58-72V69Z" stroke="#e1ce7019" /><path d="m119 97-22 23 22 23m42-46 22 23-22 23M151 84l-22 72" stroke="#d9c875" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" /><path d="m46 37 7-7m181 180-7 7M46 203l7 7m174-180 7 7" stroke="#fddf4928" strokeWidth="2" /></svg>;
 }
 
-function SnapshotTile({ label, value }) {
-  return <div className="rounded-md bg-[#0d1115] px-3 py-2.5"><p className="text-[9px] font-semibold uppercase tracking-wider text-muted">{label}</p><p className="mt-1 font-mono text-sm font-semibold text-[#fddf49]">{value}</p></div>;
+function ProfileStat({ label, value, detail, icon: Icon, accent }) {
+  return <article className={`pp-stat${accent ? " pp-stat--accent" : ""}`}><div><span>{label}</span><Icon size={16} aria-hidden="true" /></div><strong>{value}</strong><p>{detail}</p></article>;
 }
 
-function MetricBar({ label, value, percent }) {
-  const width = Math.max(0, Math.min(100, Number(percent) || 0));
-  return <div><div className="mb-1.5 flex items-center justify-between gap-3 text-[10px]"><span className="font-medium text-on-surface-variant">{label}</span><span className="font-mono font-semibold text-[#fddf49]">{value}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-[#24292f]"><div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} /></div></div>;
+function EmptyState({ icon: Icon = Layers, title, copy, loading = false, onRetry }) {
+  return <div className="pp-empty" role={loading || onRetry ? "status" : undefined}><span className="pp-empty__icon">{loading ? <LoaderCircle size={24} className="pp-spin" aria-hidden="true" /> : <Icon size={25} strokeWidth={1.3} aria-hidden="true" />}</span><h3>{title}</h3><p>{copy}</p>{onRetry && <button type="button" className="pp-text-button" onClick={onRetry}>Try again <RotateCcw size={12} aria-hidden="true" /></button>}</div>;
 }
 
-function EmptyPanel({ icon: Icon, text }) {
-  return <div className="mt-4 flex min-h-24 items-center justify-center gap-3 rounded-md border border-dashed border-white/[.08] bg-[#0d1115]/70 px-4 py-5 text-center"><Icon size={17} className="shrink-0 text-muted" /><p className="max-w-lg text-[10px] leading-5 text-muted">{text}</p></div>;
+function RecordChart({ wins, losses, draws }) {
+  const total = wins + losses + draws;
+  const rate = total ? Math.round(wins / total * 1000) / 10 : 0;
+  const circumference = 2 * Math.PI * 64;
+  let offset = 0;
+  const segments = [{ value: wins, color: "#dcca76" }, { value: losses, color: "#b8837e" }, { value: draws, color: "#849cae" }].map((item) => {
+    const length = total ? item.value / total * circumference : 0;
+    const result = { ...item, length, offset };
+    offset += length;
+    return result;
+  });
+  return <div className="pp-record-chart" role="img" aria-label={`${wins} wins, ${losses} losses, ${draws} draws. ${rate}% win rate.`}><svg viewBox="0 0 160 160" fill="none" aria-hidden="true"><circle cx="80" cy="80" r="75" stroke="#ffffff07" /><circle cx="80" cy="80" r="64" stroke="#ffffff0b" strokeWidth="7" /><g transform="rotate(-90 80 80)">{segments.filter((item) => item.length > 0).map((item) => <circle key={item.color} cx="80" cy="80" r="64" stroke={item.color} strokeWidth="7" strokeDasharray={`${item.length} ${circumference - item.length}`} strokeDashoffset={-item.offset} />)}</g></svg><div aria-hidden="true"><strong>{rate}<small>%</small></strong><span>WIN RATE</span></div></div>;
 }
 
 function SubmissionRow({ submission }) {
   const accepted = submission.status === "accepted";
-  const title = submission.problem?.title || "Code submission";
-  const when = submission.createdAt ? new Date(submission.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Recent";
-  const language = LANGUAGE_LABELS[submission.language] || submission.language;
-  return <article className="flex flex-col gap-3 rounded-md border border-white/[.04] bg-[#16191c] p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"><div className="flex min-w-0 items-center gap-3"><span className={`flex h-10 w-12 shrink-0 flex-col items-center justify-center rounded-sm text-[8px] font-semibold uppercase ${accepted ? "bg-[#fddf49]/10 text-[#fddf49]" : "bg-[#db8080]/10 text-[#db8080]"}`}><span>{accepted ? "Passed" : "Review"}</span><span>{submission.passedCount ?? 0}/{submission.totalCount ?? 0}</span></span><div className="min-w-0"><h3 className="truncate text-xs font-semibold text-on-surface">{title}</h3><p className="mt-1 truncate font-mono text-[9px] text-on-surface-variant">{submission.problem?.slug || language} <span className="px-1 text-muted">·</span>{submission.executionTimeMs ?? 0}ms <span className="px-1 text-muted">·</span>{when}</p></div></div><span className={`inline-flex shrink-0 items-center gap-1.5 text-[9px] font-semibold ${accepted ? "text-[#fddf49]" : "text-[#db8080]"}`}>{accepted ? <CheckCircle2 size={13} /> : <Clock3 size={13} />}{accepted ? "Accepted" : submission.status?.replaceAll("_", " ")}</span></article>;
+  const statuses = { accepted: "Accepted", wrong_answer: "Wrong answer", runtime_error: "Runtime error", time_limit: "Time limit", compile_error: "Compile error" };
+  const when = date(submission.createdAt, { month: "short", day: "numeric" });
+  const hasTests = typeof submission.passedCount === "number" && submission.totalCount > 0;
+  return <article className="pp-submission"><span className={`pp-submission__icon${accepted ? " is-accepted" : ""}`}>{accepted ? <CheckCircle2 size={18} aria-hidden="true" /> : <CircleAlert size={18} aria-hidden="true" />}</span><div className="pp-submission__main"><h3 title={submission.problem?.title}>{submission.problem?.title || "Code submission"}</h3><p><span>{LANGUAGE_LABELS[submission.language] || submission.language || "Language unavailable"}</span>{hasTests && <><i />{submission.passedCount}/{submission.totalCount} tests</>}{typeof submission.executionTimeMs === "number" && <><i />{number(submission.executionTimeMs)} ms</>}</p></div><div className="pp-submission__result"><strong className={accepted ? "is-accepted" : ""}>{statuses[submission.status] || submission.status?.replaceAll("_", " ") || "Recorded"}</strong>{when && <time dateTime={submission.createdAt}>{when}</time>}</div></article>;
+}
+
+export default function ProfileDashboard({ profileUser, isOwnProfile, recentSubmissions = [], submissionsLoading, submissionsError, onRetrySubmissions, onEdit }) {
+  const [shareState, setShareState] = useState("idle");
+  const shareTimer = useRef(null);
+  useEffect(() => { setShareState("idle"); return () => clearTimeout(shareTimer.current); }, [profileUser.username]);
+  const stats = profileUser.stats || {};
+  const wins = stats.wins ?? 0, losses = stats.losses ?? 0, draws = stats.draws ?? 0;
+  const totalMatches = wins + losses + draws;
+  const winRate = totalMatches ? Math.round(wins / totalMatches * 1000) / 10 : 0;
+  const joined = date(profileUser.createdAt);
+  const lastSeen = date(profileUser.lastSeen, { month: "short", day: "numeric", year: "numeric" });
+  const friends = profileUser.friends?.length ?? 0;
+  const badges = profileUser.badges || [];
+  const shareUrl = `${window.location.origin}/u/${encodeURIComponent(profileUser.username)}`;
+  const languages = useMemo(() => {
+    const counts = recentSubmissions.reduce((map, item) => { if (item.language) map[item.language] = (map[item.language] || 0) + 1; return map; }, {});
+    const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([key, count]) => ({ key, count, percent: count / total * 100 }));
+  }, [recentSubmissions]);
+  const copyProfile = async () => {
+    clearTimeout(shareTimer.current);
+    try { await navigator.clipboard.writeText(shareUrl); setShareState("copied"); shareTimer.current = setTimeout(() => setShareState("idle"), 2200); }
+    catch { setShareState("manual"); }
+  };
+
+  return (
+    <div className="player-profile">
+      <div className="pp-page-top"><Link to={isOwnProfile ? "/dashboard" : "/"}><ArrowLeft size={13} aria-hidden="true" />Back to {isOwnProfile ? "Command Deck" : "the arena"}</Link><p className="pp-eyebrow"><span />{isOwnProfile ? "YOUR PLAYER CARD" : "MEET THE CHALLENGER"}</p></div>
+      <section className="pp-passport" aria-labelledby="pp-player-name">
+        <div className="pp-passport__cover"><div><p className="pp-eyebrow"><ShieldCheck size={14} aria-hidden="true" />CODE ARENA / PLAYER FILE</p><span className="pp-passport__motto">A story written<br />one <em>duel at a time.</em></span></div><PlayerCrest /><span className={`pp-presence${profileUser.isOnline ? " is-online" : ""}`}><span />{profileUser.isOnline ? "In the arena" : lastSeen ? `Last seen ${lastSeen}` : "Offline"}</span></div>
+        <div className="pp-identity"><div className="pp-identity__main"><div className="pp-avatar-wrap"><PlayerAvatar user={profileUser} /><span className="pp-avatar-wrap__mark"><Code2 size={12} aria-hidden="true" /></span></div><div className="pp-identity__text"><div className="pp-identity__tier"><span>{profileUser.tier || "Arena member"}</span>{profileUser.rank != null && <span>#{number(profileUser.rank)} in the arena</span>}</div><h1 id="pp-player-name">{profileUser.username}<span>.</span></h1><div className="pp-identity__meta">{profileUser.college && <span><GraduationCap size={13} aria-hidden="true" />{profileUser.college}</span>}{joined && <span><CalendarDays size={12} aria-hidden="true" />Joined {joined}</span>}<span><Users size={12} aria-hidden="true" />{number(friends)} {friends === 1 ? "friend" : "friends"}</span></div></div></div><div className="pp-identity__actions">{isOwnProfile && <button type="button" className="pp-button pp-button--primary" onClick={onEdit}><Pencil size={13} aria-hidden="true" />Edit player card</button>}<button type="button" className={`pp-button${!isOwnProfile ? " pp-button--primary" : ""}`} onClick={copyProfile}>{shareState === "copied" ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}{shareState === "copied" ? "Link copied" : "Share profile"}</button></div></div>
+        <div className="pp-passport__bottom"><p className={`pp-bio${!profileUser.bio ? " is-empty" : ""}`}>{profileUser.bio || (isOwnProfile ? "A few words can say a lot. Add your story to your player card." : "Letting the code do the talking.")}</p><div className="pp-rating"><span>ARENA RATING</span><strong>{number(profileUser.rating)}<small>RR</small></strong></div></div>
+        {shareState !== "idle" && <div className="pp-share-feedback" role="status">{shareState === "copied" ? "Your public profile link is ready to share." : <><label htmlFor="pp-share-url">Copy your profile link:</label><input id="pp-share-url" readOnly value={shareUrl} onFocus={(event) => event.target.select()} /></>}</div>}
+      </section>
+
+      <section className="pp-stats" aria-label="Player statistics"><ProfileStat label="Battles played" value={number(totalMatches)} detail={`${number(wins)} wins · ${number(losses)} losses · ${number(draws)} draws`} icon={Swords} /><ProfileStat label="Problems solved" value={number(stats.problemsSolved ?? 0)} detail={`${number(stats.submissions ?? 0)} total submissions`} icon={Code2} /><ProfileStat label="Current streak" value={number(stats.streak ?? 0)} detail="Consecutive wins" icon={Flame} /><ProfileStat label="Experience earned" value={<>{number(profileUser.xp ?? 0)}<small>XP</small></>} detail="Every line counts." icon={Sparkles} accent /></section>
+
+      <div className="pp-content-grid">
+        <section className="pp-panel pp-activity" aria-labelledby="pp-activity-title"><div className="pp-section-heading"><div><p className="pp-eyebrow">THE WORK BEHIND THE WINS</p><h2 id="pp-activity-title">The latest moves<span>.</span></h2></div><span className="pp-section-icon"><Layers size={18} aria-hidden="true" /></span></div>
+          {!isOwnProfile ? <EmptyState icon={LockKeyhole} title="Some moves stay private." copy="Submission history is only visible to the player who wrote the code." /> : submissionsLoading ? <EmptyState loading title="Gathering your code activity…" copy="Your recent submissions are on their way." /> : submissionsError ? <EmptyState icon={CircleAlert} title="Your activity couldn't load." copy="Your record is still yours. Give it another try." onRetry={onRetrySubmissions} /> : recentSubmissions.length ? <><div className="pp-submissions">{recentSubmissions.map((submission) => <SubmissionRow key={submission._id} submission={submission} />)}</div><p className="pp-panel__footnote">Showing {recentSubmissions.length} recent {recentSubmissions.length === 1 ? "submission" : "submissions"}. Every attempt is part of the story.</p></> : <EmptyState icon={Code2} title="The first line is yours." copy="No submissions yet. Take on a ranked challenge and your code activity will find a home here." />}
+        </section>
+
+        <section className="pp-panel pp-record" aria-labelledby="pp-record-title"><div className="pp-section-heading"><div><p className="pp-eyebrow">THE BIGGER PICTURE</p><h2 id="pp-record-title">A record of your own<span>.</span></h2></div><Target size={18} className="pp-gold" aria-hidden="true" /></div><div className="pp-record__body"><RecordChart wins={wins} losses={losses} draws={draws} /><dl className="pp-record__legend">{[{ label: "Wins", value: wins, type: "wins" }, { label: "Losses", value: losses, type: "losses" }, { label: "Draws", value: draws, type: "draws" }].map((item) => <div key={item.label}><dt><span className={`pp-record__dot pp-record__dot--${item.type}`} />{item.label}</dt><dd>{number(item.value)}</dd></div>)}</dl></div><div className="pp-record__peak"><span><Trophy size={14} aria-hidden="true" />Personal best</span><strong>{number(stats.peakRating ?? profileUser.rating)}<small>RR</small></strong></div><p className="pp-panel__footnote">{totalMatches ? `${number(totalMatches)} ${totalMatches === 1 ? "battle" : "battles"} played. ${winRate}% won. Keep writing the story.` : "Every record starts somewhere. This one's just getting started."}</p></section>
+
+        <section className="pp-panel pp-toolkit" aria-labelledby="pp-toolkit-title"><div className="pp-section-heading"><div><p className="pp-eyebrow">DIFFERENT TOOLS. YOUR APPROACH.</p><h2 id="pp-toolkit-title">The language of your game<span>.</span></h2></div><Code2 size={18} className="pp-muted" aria-hidden="true" /></div>
+          {!isOwnProfile ? <EmptyState icon={LockKeyhole} title="Their toolkit stays personal." copy="Language activity is based on private submission history." /> : submissionsLoading ? <EmptyState loading title="Reading your recent activity…" copy="Your language mix will appear here." /> : submissionsError ? <EmptyState icon={CircleAlert} title="Your toolkit is taking a moment." copy="Reload recent activity to see your language mix." onRetry={onRetrySubmissions} /> : languages.length ? <><div className="pp-language-stack" aria-hidden="true">{languages.map((language) => <span key={language.key} style={{ width: `${language.percent}%`, backgroundColor: LANGUAGE_COLORS[language.key] || "#a3b3bb" }} />)}</div><div className="pp-languages">{languages.map((language) => <div className="pp-language" key={language.key}><span className="pp-language__dot" style={{ backgroundColor: LANGUAGE_COLORS[language.key] || "#a3b3bb" }} /><strong>{LANGUAGE_LABELS[language.key] || language.key}</strong><span>{language.count} {language.count === 1 ? "submission" : "submissions"}</span><b>{Math.round(language.percent)}%</b></div>)}</div><p className="pp-panel__footnote">A snapshot of your {recentSubmissions.length} latest submissions, not your entire history.</p></> : <EmptyState icon={Code2} title="Find your favourite way to build." copy="Your language mix appears after you submit code. Python, JavaScript, C++, and Java are supported." />}
+        </section>
+
+        <section className="pp-panel pp-badges" aria-labelledby="pp-badges-title"><div className="pp-section-heading"><div><p className="pp-eyebrow">LEAVE YOUR MARK</p><h2 id="pp-badges-title">Earned, not given<span>.</span></h2></div><span className="pp-badge-count">{badges.length} unlocked</span></div>{badges.length ? <div className="pp-badge-list">{badges.map((badge, index) => <article key={`${badge}-${index}`}><span className="pp-badge-emblem"><Award size={24} strokeWidth={1.4} aria-hidden="true" /></span><div><h3>{badge.replaceAll("_", " ")}</h3><p>Arena achievement</p></div></article>)}</div> : <EmptyState icon={Award} title="Room for your first milestone." copy="No badges unlocked yet. Your earned achievements will live right here." />}</section>
+      </div>
+
+      <section className="pp-rivals"><div className="pp-rivals__art" aria-hidden="true"><Swords size={28} strokeWidth={1.2} /><span /></div><div><p className="pp-eyebrow">GOOD RIVALS. BETTER STORIES.</p><h2>Some rivalries are worth keeping.</h2><p>Direct challenges, friend requests, and spectating are <strong>Coming soon.</strong></p></div><span className="pp-soon">Coming soon</span></section>
+    </div>
+  );
 }

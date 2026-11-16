@@ -3,12 +3,15 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowUpRight, Bell, LogOut, Menu, Swords, User, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import Brand from "./Brand";
+import RankOverview, { RankBadge } from "./RankOverview";
 
 export default function Navbar({ onQuickDuel, matchFound = false }) {
   const { user, openLogin, openSignup, logout } = useAuth();
   const [mobileNav, setMobileNav] = useState(false);
   const [userDropdown, setUserDropdown] = useState(false);
+  const [rankOpen, setRankOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const rankReturnFocusRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
   const isBattleModesPage = location.pathname === "/battle-modes";
@@ -27,7 +30,8 @@ export default function Navbar({ onQuickDuel, matchFound = false }) {
   useEffect(() => {
     setMobileNav(false);
     setUserDropdown(false);
-  }, [location.pathname]);
+    setRankOpen(false);
+  }, [location.pathname, matchFound]);
 
   const handleScrollTo = (e, hash) => {
     e.preventDefault();
@@ -90,15 +94,32 @@ export default function Navbar({ onQuickDuel, matchFound = false }) {
     navigate("/");
   };
 
+  const openRanks = (event) => {
+    rankReturnFocusRef.current = event.currentTarget.closest('[aria-label="Account menu"]')
+      ? dropdownRef.current?.querySelector('button[aria-label="Open account menu"]')
+      : event.currentTarget;
+    setUserDropdown(false);
+    setRankOpen(true);
+  };
+
   if (user && !matchFound) {
     return (
+      <>
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[.08] bg-[#0d0f11]/95 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-3 px-4 sm:px-6">
           <div className="flex items-center gap-5"><Link to="/dashboard" className="flex items-center gap-2.5"><Brand /></Link><nav aria-label="Account navigation" className="hidden items-center gap-1 md:flex">{[{ path: "/dashboard", label: "Command Deck" }, { path: "/battle-modes", label: "Battle Modes" }].map((item) => <Link key={item.path} to={item.path} aria-current={location.pathname === item.path ? "page" : undefined} className={`rounded-md border-b-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide ${location.pathname === item.path ? "border-[#fddf49] bg-white/[.06] text-[#fddf49]" : "border-transparent text-[#9298a5] hover:bg-white/5 hover:text-white"}`}>{item.label}</Link>)}</nav></div>
           <button onClick={handleQuickDuel} className="flex shrink-0 items-center gap-2 rounded-lg bg-[#fddf49] px-3 py-2 text-[11px] font-bold text-[#211c08] shadow-[0_0_18px_#fddf4920] hover:bg-[#ffe76e]"><Swords size={14} /><span className="hidden sm:inline">1V1 QUICK DUEL</span><span className="sm:hidden">DUEL</span></button>
-          <div className="flex items-center gap-3"><div className="hidden rounded-md border border-white/10 bg-[#1f2328] px-3 py-1.5 lg:flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#fddf49] animate-pulse" /><span className="text-[10px] font-bold uppercase tracking-wider text-[#fddf49]">{user.tier || "BRONZE"}{user.rank != null ? ` #${user.rank}` : ""}</span><span className="text-[10px] font-mono text-[#9298a5]">{Number(user.rating ?? 1200).toLocaleString()} RR</span></div><div className="relative" ref={dropdownRef}><button onClick={() => setUserDropdown((open) => !open)} aria-label="Open account menu" aria-expanded={userDropdown} className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-[#fddf49]/70 bg-[#1f2328] text-[#fddf49]">{user.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : <User size={17} />}</span><span className="hidden text-left sm:block"><b className="block max-w-28 truncate text-xs text-white">{user.username}</b><span className="text-[10px] text-emerald-400">Online</span></span></button>{userDropdown && <nav aria-label="Account menu" className="absolute right-0 top-full mt-3 w-48 rounded-lg border border-white/10 bg-[#16191c] p-2 shadow-xl"><Link to="/dashboard" className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">Command Deck</Link><Link to="/battle-modes" className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">Battle Modes</Link><Link to={`/u/${user.username}`} className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">My profile</Link><button onClick={handleLogout} className="flex w-full items-center gap-2 rounded px-3 py-2 text-xs text-[#e29a9a] hover:bg-white/5"><LogOut size={13} />Log out</button></nav>}</div></div>
+          <div className="flex items-center gap-3">
+            <RankBadge user={user} onClick={openRanks} expanded={rankOpen} />
+            <div className="relative" ref={dropdownRef}>
+              <button onClick={() => setUserDropdown((open) => !open)} aria-label="Open account menu" aria-expanded={userDropdown} className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-[#fddf49]/70 bg-[#1f2328] text-[#fddf49]">{user.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : <User size={17} />}</span><span className="hidden text-left sm:block"><b className="block max-w-28 truncate text-xs text-white">{user.username}</b><span className="text-[10px] text-emerald-400">Online</span></span></button>
+              {userDropdown && <nav aria-label="Account menu" className="absolute right-0 top-full mt-3 w-48 rounded-lg border border-white/10 bg-[#16191c] p-2 shadow-xl"><Link to="/dashboard" className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">Command Deck</Link><Link to="/battle-modes" className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">Battle Modes</Link><Link to={`/u/${user.username}`} className="block rounded px-3 py-2 text-xs text-[#d0d4df] hover:bg-white/5">My profile</Link><button type="button" onClick={openRanks} aria-haspopup="dialog" className="flex w-full items-center gap-2 rounded px-3 py-2 text-xs text-[#e5d889] hover:bg-white/5">Your rank <ArrowUpRight size={13} aria-hidden="true" /></button><button onClick={handleLogout} className="flex w-full items-center gap-2 rounded px-3 py-2 text-xs text-[#e29a9a] hover:bg-white/5"><LogOut size={13} />Log out</button></nav>}
+            </div>
+          </div>
         </div>
       </header>
+      {rankOpen && <RankOverview user={user} onClose={() => setRankOpen(false)} returnFocusTo={rankReturnFocusRef.current} />}
+      </>
     );
   }
 

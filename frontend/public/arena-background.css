@@ -1,0 +1,21 @@
+:root {
+  --arena-page-color: #0d0f11;
+  --arena-page-image:
+    radial-gradient(circle at 50% 0%, rgba(253, 223, 73, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(226, 198, 48, 0.04) 0%, transparent 35%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  --arena-page-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+}
+
+/* Shared by React page containers and standalone iframe documents. */
+:root .arena-page-background {
+  background-color: var(--arena-page-color);
+  background-image: var(--arena-page-image);
+  background-size: var(--arena-page-size);
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
+}
+
+body.arena-page-background {
+  min-height: 100vh;
+}

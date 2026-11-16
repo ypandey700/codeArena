@@ -262,7 +262,7 @@ export default function PostMortemReport({ onBack, onQueueNext }) {
   return (
     <>
       {!ready && <p role="status" className="p-8 text-center text-[#FDDF49]">{error || "Loading match report…"}</p>}
-      <iframe ref={frameRef} style={{ visibility: ready ? "visible" : "hidden" }} src="/match-report.html" title="Match post-mortem and player comparison" onLoad={() => setFrameReady(true)} className="block h-[calc(100dvh-64px)] w-full border-0 bg-[#121414]" />
+      <iframe ref={frameRef} style={{ visibility: ready ? "visible" : "hidden" }} src="/match-report.html" title="Match post-mortem and player comparison" onLoad={() => setFrameReady(true)} className="arena-page-background block h-[calc(100dvh-64px)] w-full border-0" />
     </>
   );
 }

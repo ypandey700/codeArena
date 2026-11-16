@@ -144,7 +144,7 @@ export default function CommandDeck({ onQuickDuel }) {
   const profilePath = `/u/${encodeURIComponent(user?.username || "")}`;
 
   return (
-    <div className="command-deck">
+    <div className="command-deck arena-page-background">
       <div className="cd-wrap">
         <header className="cd-intro">
           <div>

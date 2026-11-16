@@ -77,7 +77,7 @@ export default function BattleModes({ onQuickDuel }) {
       src="/battle-modes.html"
       title="Code Arena battle modes"
       onLoad={connectModes}
-      className="block h-[calc(100dvh-64px)] w-full border-0 bg-[#0d0f11]"
+      className="arena-page-background block h-[calc(100dvh-64px)] w-full border-0"
     />
   );
 }

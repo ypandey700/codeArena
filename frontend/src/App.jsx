@@ -52,7 +52,7 @@ function MainLayout() {
 
   return (
     <main
-      className={`flex min-h-screen flex-col justify-between overflow-x-hidden bg-[#18191b] text-on-surface selection:bg-primary selection:text-[#261f18] ${
+      className={`arena-page-background flex min-h-screen flex-col justify-between overflow-x-hidden text-on-surface selection:bg-primary selection:text-[#261f18] ${
         (isReferenceLanding && location.pathname === "/") || ["battle"].includes(duelState)
           ? "pt-0"
           : "pt-16"
