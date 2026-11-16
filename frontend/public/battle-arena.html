@@ -103,24 +103,15 @@ pre, code, pre *, code *, textarea {
 #floating-chat-modal { pointer-events: none; visibility: hidden; }
 #floating-chat-modal.open { pointer-events: auto; visibility: visible; }
 #run-local-tests-btn, #submit-duel-btn { position: relative; pointer-events: auto; }
-</style></head><body class="bg-background font-body-sm text-on-surface antialiased cyber-grid-bg min-h-screen selection:bg-primary-container selection:text-on-primary">
+</style><link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/brand.css">
+</head><body class="bg-background font-body-sm text-on-surface antialiased cyber-grid-bg min-h-screen selection:bg-primary-container selection:text-on-primary">
 <!-- TOP STRIPPED NAVBAR -->
 <header class="fixed top-0 left-0 right-0 z-50 bg-[#121414]/90 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_2px_16px_rgba(0,0,0,0.5)]">
 <div class="h-14 w-full px-4 sm:px-margin flex items-center justify-between gap-gutter">
 <!-- Left: Brand + Nav -->
 <div class="flex items-center gap-6">
-<div class="flex items-center gap-2.5 cursor-pointer select-none group">
-<div class="w-7 h-7 rounded-lg bg-surface-container-high border border-primary-container/30 flex items-center justify-center relative shadow-[0_0_10px_rgba(253,223,73,0.15)] group-hover:border-primary-container transition-all">
-<span class="material-symbols-outlined text-primary-container text-[17px]">terminal</span>
-<span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#121414]"></span>
-</div>
-<div class="flex flex-col">
-<span class="font-bold text-xs tracking-widest uppercase text-white leading-none">Code Arena</span>
-<span class="font-mono-code text-[10px] text-emerald-400 leading-tight flex items-center gap-1 mt-0.5">
-<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Arena
-          </span>
-</div>
-</div>
+<span class="arena-brand"><img class="arena-brand__mark" src="/favicon.svg" width="32" height="32" alt=""><span class="arena-brand__name">CODE <span class="arena-brand__accent">ARENA</span></span></span>
 <!-- Navigation links -->
 <nav class="hidden md:flex items-center gap-1 pl-2">
 <a class="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-muted hover:text-white hover:bg-white/[0.04] transition-all rounded" href="#">Command Deck</a>

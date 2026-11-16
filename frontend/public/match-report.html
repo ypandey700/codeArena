@@ -10,9 +10,11 @@
 @media(max-width:650px){header{padding:16px}main{padding:16px 16px calc(var(--bar-height) + env(safe-area-inset-bottom,0px) + 20px)}section{padding:18px 14px;margin-bottom:16px}h1{font-size:25px}h2{font-size:19px}.hero,.split{grid-template-columns:1fr}.versus{padding:6px;gap:7px}.versus strong{font-size:22px}.comparison thead{display:none}.comparison tr{display:grid;grid-template-columns:1fr;border-bottom:1px solid #333535;padding:12px 0;gap:10px}.comparison th,.comparison td{display:block;width:auto!important;border:0;padding:3px!important;min-width:0;overflow-wrap:anywhere}.comparison th{grid-column:1/-1}.comparison td:before{content:attr(data-label);display:block;font-size:11px;color:var(--muted);margin-bottom:6px}.comparison td:last-child{grid-column:1/-1}.comparison td:last-child:before{display:inline;margin-right:10px}.actions{padding:12px 16px;flex-wrap:wrap}.actions>div:first-child{font-size:11px}.actions-buttons{width:100%}.actions-buttons button{flex:1;padding:11px 8px;font-size:12px}}
 @media print{.actions,header button{display:none}main{padding-bottom:0}section{break-inside:avoid}.scroll{overflow:visible}}
 </style>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/brand.css">
 </head>
 <body>
-<header><strong>CODE ARENA</strong><span class="muted">MATCH POST-MORTEM</span></header>
+<header><span class="arena-brand"><img class="arena-brand__mark" src="/favicon.svg" width="32" height="32" alt=""><span class="arena-brand__name">CODE <span class="arena-brand__accent">ARENA</span></span></span><span class="muted">MATCH POST-MORTEM</span></header>
 <main>
 <section><div class="eyebrow" id="report-problem-title">Match report</div><h1 id="report-verdict">Loading result…</h1><p id="report-reason"></p></section>
 <section aria-label="Head-to-head players"><div class="hero" id="report-hero"></div></section>

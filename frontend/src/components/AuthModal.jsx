@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Code2, Github, Lock, Mail, User, X } from "lucide-react";
+import { ArrowRight, Github, Lock, Mail, User, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import Brand from "./Brand";
 
 function GoogleIcon(props) {
   return (
@@ -93,7 +94,7 @@ function ModalShell({ title, eyebrow, onClose, children }) {
           <X size={19} />
         </button>
         <div className="mb-7">
-          <div className="mb-6 flex items-center gap-2 text-[#e4eaf5]"><span className="flex h-6 w-6 items-center justify-center rounded bg-[#e4eaf5] text-[#080c13]"><Code2 size={17} /></span><span className="text-sm font-semibold tracking-tight">codearena<span className="text-[#fddf49]">.</span></span></div>
+          <div className="mb-6"><Brand compact /></div>
           <span className="text-[11px] font-medium tracking-normal text-[#77c9d9]">{eyebrow}</span>
           <h2 id="dialog-title" className="mt-2 text-xl font-semibold tracking-tight text-on-surface">
             {title}

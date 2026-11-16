@@ -1,6 +1,7 @@
+import Brand from "../components/Brand";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Code2, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const formatError = (code) => {
@@ -56,14 +57,7 @@ export default function AuthCallback() {
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4">
       <div className="w-full max-w-[420px] rounded-xl border border-[#293449] bg-[#10141d] p-6 shadow-[0_24px_100px_rgba(0,0,0,.65)] sm:p-8">
-        <div className="mb-6 flex items-center gap-2 text-[#e4eaf5]">
-          <span className="flex h-6 w-6 items-center justify-center rounded bg-[#e4eaf5] text-[#080c13]">
-            <Code2 size={17} />
-          </span>
-          <span className="text-sm font-semibold tracking-tight">
-            codearena<span className="text-[#fddf49]">.</span>
-          </span>
-        </div>
+        <div className="mb-6"><Brand compact /></div>
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-6 text-center">

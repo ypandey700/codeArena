@@ -1,0 +1,148 @@
+.arena-invite {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #fddf4933;
+  border-radius: 12px;
+  background: #141719;
+  box-shadow: 0 12px 36px #0003;
+}
+
+.arena-invite::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 100% 0%, #fddf4912, transparent 60%),
+    radial-gradient(#ffffff0d 1px, transparent 1px);
+  background-size: auto, 16px 16px;
+  content: "";
+  pointer-events: none;
+}
+
+.arena-invite__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fddf49;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.arena-invite__eyebrow::before {
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  transform: rotate(45deg);
+  content: "";
+}
+
+.arena-invite h3.arena-invite__title {
+  margin: 16px 0 10px;
+  color: #f5f5f7;
+  font-size: 30px !important;
+  font-weight: 750 !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.045em;
+}
+
+.arena-invite__title em {
+  color: #fddf49;
+  font-style: normal;
+}
+
+.arena-invite__copy {
+  max-width: 29ch;
+  margin: 0;
+  color: #a5aab1;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.arena-invite__art {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  height: 126px;
+  margin: 6px auto 8px;
+  overflow: visible;
+}
+
+.arena-invite__player {
+  transition: transform 200ms ease;
+}
+
+.arena-invite:hover .arena-invite__player--you {
+  transform: translateX(4px);
+}
+
+.arena-invite:hover .arena-invite__player--rival {
+  transform: translateX(-4px);
+}
+
+.arena-invite a.arena-invite__action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  margin-top: auto;
+  padding: 12px 14px;
+  border: 1px solid #fddf4947;
+  border-radius: 7px;
+  background: #fddf4910;
+  color: #fddf49;
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.arena-invite__action:hover {
+  border-color: #fddf49;
+  background: #fddf4924;
+}
+
+.arena-invite__action:focus-visible {
+  outline: 2px solid #fddf49;
+  outline-offset: 4px;
+}
+
+.arena-invite__future {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed #ffffff1c;
+  color: #979da6;
+  font-size: 11px;
+}
+
+.arena-invite__soon {
+  padding: 3px 7px;
+  border: 1px solid #ffffff14;
+  border-radius: 4px;
+  color: #b6bcc4;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arena-invite__player {
+    transition: none;
+  }
+
+  .arena-invite:hover .arena-invite__player {
+    transform: none;
+  }
+}
