@@ -1,268 +1,133 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { Activity, ArrowLeft, ArrowRight, ArrowUpRight, Award, Check, ChevronDown, ChevronRight, CircleAlert, Code2, Equal, Flame, LoaderCircle, MessageSquare, Radar, RotateCcw, ShieldCheck, Sparkles, Swords, Target, Trophy } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useBattle } from "../context/BattleContext";
 import api from "../services/api";
+import { getPlayerRank } from "../data/ranks";
+import { ReportLegend, ScoreRadar, SubmissionTimeline } from "./MatchReportCharts";
+import { CodeReview, InterviewReview, ReportEmpty, ReportHeading, ScoreBreakdown } from "./MatchReportDetails";
+import { biggestDifference, formatNumber, isNumber, playerId, resultOutcome, signed } from "./matchReportUtils";
+import "./MatchReport.css";
 
-const components = [
-  ["correctness", "Tests passed"], ["speed", "Solve time"], ["runtime", "Runtime"],
-  ["timeComplexity", "Time complexity"], ["spaceComplexity", "Space complexity"],
-  ["quality", "Code quality"], ["interview", "Interview"],
-];
-const tiers = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ascendant", "Immortal", "Radiant"];
-const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
-const numeric = (value) => typeof value === "number" && Number.isFinite(value);
-const number = (value, digits = 1) => numeric(value) ? value.toFixed(digits) : "—";
-const rounded = (value, digits = 1) => numeric(value) ? Number(value.toFixed(digits)) : null;
-const signed = (value) => numeric(value) ? `${value >= 0 ? "+" : ""}${value}` : "—";
-const pending = (reason) => `<span class="pending">pending<small>${escapeHtml(reason)}</small></span>`;
-const scoreBar = (value, side) => numeric(value) ? `<span class="score-value mono">${number(value)}<small style="display:inline"> / 100</small></span><div class="track"><div class="fill ${side ? "rival" : ""}" style="width:${Math.max(0, Math.min(100, value))}%"></div></div>` : "";
+const TABS = [{ key: "overview", label: "Overview", icon: Radar }, { key: "scores", label: "Score breakdown", icon: Target }, { key: "interview", label: "AI interview", icon: MessageSquare }, { key: "code", label: "Code review", icon: Code2 }];
 
-function compare(left, right, { lower = false, unit = "", digits = 1, ratio = false, reason = "Value unavailable", neutral = false } = {}) {
-  if (!numeric(left) || !numeric(right)) return { side: null, text: `— · ${reason}` };
-  if (left === right) return { side: null, text: "= tie" };
-  if (neutral) return { side: null, text: "— · match count" };
-  const side = (lower ? left < right : left > right) ? 0 : 1;
-  const name = side ? "Rival" : "You";
-  const minimum = Math.min(left, right);
-  const delta = Math.abs(left - right);
-  const deltaDigits = rounded(delta, digits) === 0 ? Math.min(6, digits + 2) : digits;
-  const text = ratio && minimum > 0 ? `${name} ${number(Math.max(left, right) / minimum)}x faster` : `${name} +${number(delta, deltaDigits)}${unit}${lower && ["s", "ms"].includes(unit) ? " faster" : ""}`;
-  return { side, text };
+function PlayerAvatar({ player }) {
+  const [failed, setFailed] = useState(null);
+  return <span className="mr-avatar">{player.avatar && player.avatar !== failed ? <img src={player.avatar} alt="" onError={() => setFailed(player.avatar)} referrerPolicy="no-referrer" /> : (player.username || "?").slice(0, 2).toUpperCase()}</span>;
 }
 
-const valueCell = (content, side, comparison) => `<td data-label="${side ? "Rival" : "You"}" class="${comparison.side === side ? "better" : ""}">${content}${comparison.side === side ? '<span class="marker" aria-label="Better">◆</span>' : ""}</td>`;
-const edgeCell = (comparison) => `<td data-label="Edge" class="edge ${comparison.side !== null ? "better" : "muted"}">${escapeHtml(comparison.text)}</td>`;
-const comparisonRow = (label, values, displays, options) => {
-  const comparison = compare(values[0], values[1], options);
-  return `<tr><th scope="row">${escapeHtml(label)}</th>${displays.map((display, side) => valueCell(display, side, comparison)).join("")}${edgeCell(comparison)}</tr>`;
-};
-const playerName = (player, side) => `${side ? "Rival" : "You"} · ${player?.username || "Username unavailable"}`;
-const comparisonHead = (players) => `<tr><th scope="col">Metric</th>${players.map((player, side) => `<th scope="col">${escapeHtml(playerName(player, side))}</th>`).join("")}<th scope="col">Edge</th></tr>`;
-
-function renderRadar(players) {
-  const axes = components.filter(([key]) => players.every((player) => numeric(player.scores?.[key])));
-  if (!axes.length) return '<p class="muted">No shared scored axes available. AI analysis or interview scoring may be unavailable.</p>';
-  const point = (index, value, radius = 135) => {
-    const angle = index * Math.PI * 2 / axes.length - Math.PI / 2;
-    return [250 + Math.cos(angle) * radius * value / 100, 205 + Math.sin(angle) * radius * value / 100];
-  };
-  const grid = [25, 50, 75, 100].map((value) => `<polygon points="${axes.map((_, index) => point(index, value).join(",")).join(" ")}" fill="none" stroke="#363939"/>`).join("");
-  const labels = axes.map(([key, label], index) => {
-    const end = point(index, 100);
-    const position = point(index, 100, 174);
-    return `<line x1="250" y1="205" x2="${end[0]}" y2="${end[1]}" stroke="#363939"/><text x="${position[0]}" y="${position[1]}" text-anchor="middle" fill="#CEC6AE" font-size="11">${escapeHtml(key === "correctness" ? "Correctness" : key === "speed" ? "Speed" : label)}</text>`;
-  }).join("");
-  const series = players.map((player, side) => {
-    const color = side ? "#aeb7c4" : "#FDDF49";
-    const points = axes.map(([key], index) => point(index, player.scores[key]).join(",")).join(" ");
-    return `<polygon points="${points}" fill="${color}" fill-opacity="0.1" stroke="${color}" stroke-width="2" ${side ? 'stroke-dasharray="5 4"' : ""}/>${axes.map(([key, label], index) => {
-      const [x, y] = point(index, player.scores[key]);
-      return `<circle cx="${x}" cy="${y}" r="3" fill="${color}"><title>${escapeHtml(playerName(player, side))}: ${escapeHtml(label)} ${number(player.scores[key])}</title></circle>`;
-    }).join("")}`;
-  }).join("");
-  const skipped = components.filter(([key]) => !axes.some(([active]) => active === key)).map(([, label]) => label);
-  return `<svg class="chart" viewBox="0 0 500 410" role="img" aria-label="Both players on ${axes.length} shared score axes, out of 100">${grid}${labels}${series}</svg><p class="muted">${skipped.length ? `Pending axes omitted for both: ${escapeHtml(skipped.join(", "))}.` : "All seven scored axes shown. Each axis is out of 100."}</p>`;
+function ArenaSeal({ outcome }) {
+  const Icon = outcome === "victory" ? Trophy : outcome === "draw" ? Equal : Swords;
+  return <div className="mr-seal" aria-hidden="true"><svg viewBox="0 0 260 260"><circle className="mr-seal__orbit" cx="130" cy="130" r="115" /><circle cx="130" cy="130" r="95" /><path className="mr-seal__diamond" d="M130 28 232 130 130 232 28 130Z" /><path d="M130 49 211 130 130 211 49 130Z" /><path className="mr-seal__rays" d="M130 4v19m0 214v19M4 130h19m214 0h19M41 41l13 13m152 152 13 13M41 219l13-13M206 54l13-13" /><path className="mr-seal__laurel" d="M87 185c-37-18-47-64-25-96m6 60-20-8m18-8-20-13m22-4-16-19m17 65-15 1m119 22c37-18 47-64 25-96m-6 60 20-8m-18-8 20-13m-22-4 16-19m-17 65 15 1" /><circle className="mr-seal__core" cx="130" cy="130" r="52" /><circle className="mr-seal__spark" cx="47" cy="52" r="3" /><circle className="mr-seal__spark" cx="221" cy="181" r="3" /></svg><Icon size={49} strokeWidth={1.3} /><span>THE ARENA REMEMBERS</span></div>;
 }
 
-function renderTimeline(data, players) {
-  const events = (data.timeline || []).filter((event) => players.some((player) => String(player.userId) === String(event.user)) && numeric(event.at) && numeric(event.passedCount)).sort((a, b) => a.at - b.at);
-  if (!events.length) return '<p class="muted">No submission timeline available.</p>';
-  const first = events[0].at;
-  const duration = events[events.length - 1].at - first;
-  const maximum = Math.max(...players.map((player) => numeric(player.totalTests) ? player.totalTests : 0), ...events.map((event) => event.passedCount), 1);
-  const x = (at) => 50 + (at - first) / (duration || 1) * 650;
-  const y = (passed) => 220 - passed / maximum * 180;
-  const grid = [0, 0.5, 1].map((fraction) => `<line x1="50" y1="${y(fraction * maximum)}" x2="700" y2="${y(fraction * maximum)}" stroke="#363939"/><text x="40" y="${y(fraction * maximum) + 4}" text-anchor="end" fill="#9A9A9A" font-size="11">${number(fraction * maximum, 0)}</text>`).join("");
-  const series = players.map((player, side) => {
-    const own = events.filter((event) => String(event.user) === String(player.userId));
-    const color = side ? "#aeb7c4" : "#FDDF49";
-    return `<polyline points="${own.map((event) => `${x(event.at)},${y(event.passedCount)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="2" ${side ? 'stroke-dasharray="5 4"' : ""}/>${own.map((event) => `<circle cx="${x(event.at)}" cy="${y(event.passedCount)}" r="4" fill="${color}"><title>${escapeHtml(playerName(player, side))}: ${event.passedCount} tests, ${number((event.at - first) / 1000)}s since first submission</title></circle>`).join("")}`;
-  }).join("");
-  return `<svg class="chart" viewBox="0 0 750 260" role="img" aria-label="Tests passed over time for both players">${grid}${series}<text x="50" y="248" fill="#9A9A9A" font-size="11">0.0s</text><text x="700" y="248" text-anchor="end" fill="#9A9A9A" font-size="11">${number(duration / 1000)}s</text></svg><p class="muted">Tests passed · Time since first recorded submission. ${events.length} recorded submissions. ${players.filter((player) => !events.some((event) => String(event.user) === String(player.userId))).map((player) => `${escapeHtml(player.username)} has no recorded submissions.`).join(" ")}</p>`;
+function PlayerResult({ player, own, winner, draw }) {
+  return <article className={`mr-player-result${own ? " is-you" : ""}${winner ? " is-winner" : ""}`} aria-label={`${own ? "Your" : "Rival's"} result`}>
+    <div className="mr-player-result__top"><div className="mr-player-result__identity"><PlayerAvatar player={player} /><div><span>{own ? "YOU" : "YOUR RIVAL"}{winner && <b><Trophy size={10} aria-hidden="true" />WINNER</b>}{draw && <b>DRAW</b>}</span><h2 title={player.username}>{player.username || (own ? "You" : "Rival")}</h2><p>{player.record?.tier || "Rank unavailable"}{isNumber(player.record?.rank) && <><i />#{formatNumber(player.record.rank, 0)}</>}</p></div></div><span className={`mr-rating-delta${player.ratingDelta < 0 ? " is-negative" : ""}`}>{signed(player.ratingDelta)}<small>RR</small></span></div>
+    <div className="mr-player-result__bottom"><span className="mr-player-score">{formatNumber(player.scores?.total, 2)}<small>/100<span>FINAL SCORE</span></small></span><div><span>{formatNumber(player.ratingBefore, 0)}<ArrowRight size={12} aria-hidden="true" /><strong>{formatNumber(player.ratingAfter, 0)} <small>RR</small></strong></span><p>{signed(player.xpGained)} XP earned</p></div></div>
+  </article>;
 }
 
-function populateDoc(doc, data, players) {
-  const [me, rival] = players;
-  const setHtml = (id, html) => { const element = doc.getElementById(id); if (element) element.innerHTML = html; };
-  const setText = (id, text) => { const element = doc.getElementById(id); if (element) element.textContent = text; };
-  const draw = data.reason === "draw" || (!data.winner && data.status === "finished");
-  const mine = String(data.winner) === String(me.userId);
-  const verdict = draw ? "DRAW" : data.winner ? mine ? "VICTORY" : "DEFEAT" : "MATCH ENDED";
-  const totals = players.map((player) => player.scores?.total);
-  const margin = data.scoring?.margin;
-  const forced = ["forfeit", "disconnect"].includes(data.reason);
-  const winningName = mine ? "You" : "Rival";
-  let explanation = "— · Result numbers unavailable";
-  if (forced) explanation = `${winningName} won by ${data.reason}.`;
-  else if (draw && totals.every(numeric) && numeric(margin) && numeric(data.scoring?.drawThreshold)) explanation = `Draw: ${number(totals[0])} vs ${number(totals[1])} (${number(margin)} apart, under the ${number(data.scoring.drawThreshold)} threshold)`;
-  else if (data.winner && numeric(margin)) explanation = `${winningName} won by ${number(margin)} points.`;
-  if (data.status === "abandoned") explanation = "Match abandoned · No winner declared.";
-  setText("report-verdict", verdict);
-  setText("report-reason", explanation);
-  setText("report-problem-title", data.problem?.title || "Problem title unavailable");
-  setText("report-session-token", `#DUEL-${String(data.battleId || "").slice(-8).toUpperCase()}`);
-  const cards = players.map((player, side) => {
-    const winner = data.winner && String(player.userId) === String(data.winner);
-    let avatar = `<span class="avatar" aria-hidden="true">${escapeHtml(player.username?.slice(0, 1).toUpperCase() || "?")}</span>`;
-    try {
-      const url = new URL(player.avatar, window.location.origin);
-      if (player.avatar && ["http:", "https:"].includes(url.protocol)) avatar = `<img class="avatar" src="${escapeHtml(url.href)}" alt="${escapeHtml(player.username)} avatar" referrerpolicy="no-referrer">`;
-    } catch {}
-    return `<article class="player-card ${winner ? "winner" : ""}"><div class="identity">${avatar}<div><span class="eyebrow">${side ? "Rival" : "You"}</span><h3>${escapeHtml(player.username || "Username unavailable")}</h3></div></div><span class="badge">${escapeHtml(player.record?.tier || "Tier unavailable")}</span><span class="badge">Rank ${numeric(player.record?.rank) ? `#${player.record.rank}` : "—"}</span><p class="mono">${number(player.ratingBefore, 0)} → ${number(player.ratingAfter, 0)} RR <span class="better">(${signed(player.ratingDelta)})</span></p><p class="mono">${numeric(player.xpGained) ? `${signed(player.xpGained)} XP` : "— · XP unavailable"}</p><span class="badge">${draw ? "Draw" : winner ? "Winner" : data.winner ? "Defeat" : "No verdict"}</span><small>Finished: ${escapeHtml(player.finishedBy || "unavailable")}</small></article>`;
-  });
-  setHtml("report-hero", `${cards[0]}<div class="versus"><span class="vs">VS</span><strong class="mono">${number(totals[0])} vs ${number(totals[1])}</strong><small>${number(margin)} points apart${forced ? " · outcome by " + escapeHtml(data.reason) : ""}</small></div>${cards[1]}`);
-  setHtml("report-record-head", comparisonHead(players));
-  setText("report-record-note", players.map((player, side) => `${side ? "Rival" : "You"}: ${player.record ? player.record.isCurrent ? "current record" : "includes this match" : "record unavailable"}`).join(" · "));
-  const recordRows = [
-    ["rating", "Rating"], ["tier", "Tier"], ["rank", "Rank", true], ["wins", "Record W-L-D"],
-    ["winRate", "Win rate"], ["streak", "Win streak"], ["peakRating", "Peak rating"], ["matches", "Matches"],
-  ].map(([key, label, lower]) => {
-    const values = players.map((player) => key === "tier" ? tiers.includes(player.record?.tier) ? tiers.indexOf(player.record.tier) : null : player.record?.[key]);
-    const displays = players.map((player) => {
-      const record = player.record;
-      if (key === "tier") return escapeHtml(record?.tier || "— · Tier unavailable");
-      if (key === "wins") return record && [record.wins, record.losses, record.draws].every(numeric) ? `${record.wins}-${record.losses}-${record.draws}<small>Wins · Losses · Draws</small>` : "— · Record unavailable";
-      return numeric(record?.[key]) ? `${key === "rank" ? "#" : ""}${record[key]}${key === "winRate" ? "%" : ""}` : "— · Record unavailable";
-    });
-    return comparisonRow(label, values, displays, { lower, digits: 0, unit: key === "winRate" ? " pp" : key === "tier" ? " tiers" : key === "rank" ? " places" : key === "wins" ? " wins" : "", neutral: key === "matches", reason: "Record unavailable" });
-  });
-  setHtml("report-record-rows", recordRows.join(""));
-  const history = data.headToHead;
-  setHtml("report-head-to-head", history && [history.total, history.wins, history.losses, history.draws].every(numeric) ? `<p class="mono">You ${history.wins} - ${history.losses} - ${history.draws} Rival (${history.total} ${history.total === 1 ? "match" : "matches"})</p><small>You wins · Rival wins · Draws${history.total === 1 ? " · First meeting" : ""}</small><div class="dots" aria-label="Your latest results, newest first">${(history.last || []).filter((value) => ["W", "L", "D"].includes(value)).map((value) => `<span class="dot ${value}" title="${value === "W" ? "You won" : value === "L" ? "You lost" : "Draw"}">${value}</span>`).join("")}</div><small>Latest results from your perspective · newest first</small>` : '<p class="muted">— · Head-to-head unavailable</p>');
-  setHtml("report-matrix-head", `<tr><th scope="col">Component</th><th scope="col">Weight</th>${players.map((player, side) => `<th scope="col">${escapeHtml(playerName(player, side))}</th>`).join("")}<th scope="col">Edge</th></tr>`);
-  const matrix = components.map(([key, label]) => {
-    const scores = players.map((player) => player.scores?.[key]);
-    const seconds = players.map((player) => numeric(player.solveTimeMs) ? rounded(player.solveTimeMs / 1000) : null);
-    const runtimes = players.map((player) => numeric(player.runtimeMs) && player.runtimeMs > 0 ? rounded(player.runtimeMs) : null);
-    const values = key === "speed" ? seconds : key === "runtime" ? runtimes : key === "correctness" ? players.map((player) => player.passedCount) : scores;
-    const reason = key === "speed" ? "One or both players unsolved" : key === "runtime" ? "Runtime not measured" : key === "interview" ? "Interview not scored" : ["quality", "timeComplexity", "spaceComplexity"].includes(key) ? "AI analysis unavailable" : "Score unavailable";
-    const comparable = scores.every(numeric);
-    const edge = compare(...(comparable ? values : [null, null]), { lower: ["speed", "runtime"].includes(key), unit: key === "speed" ? "s" : key === "runtime" ? "ms" : key === "correctness" ? " tests" : " pts", digits: key === "correctness" ? 0 : 1, ratio: key === "runtime", reason });
-    const weight = data.scoring?.activeWeights?.[key];
-    const nominal = data.scoring?.weights?.[key];
-    const weightHtml = numeric(weight) ? `${number(weight)}%${numeric(nominal) && Math.abs(weight - nominal) > 0.001 ? `<small>${number(nominal)}% nominal</small>` : ""}` : `—<small>${numeric(nominal) ? `${number(nominal)}% nominal · inactive` : "Weight unavailable"}</small>`;
-    const cells = players.map((player, side) => {
-      let raw = "";
-      if (key === "correctness") raw = `${number(player.passedCount, 0)}/${number(player.totalTests, 0)} tests`;
-      else if (key === "speed") raw = numeric(seconds[side]) ? `${number(seconds[side])}s` : "— · Unsolved";
-      else if (key === "runtime") raw = numeric(runtimes[side]) ? `${number(runtimes[side])}ms` : "— · Runtime not measured";
-      else if (["timeComplexity", "spaceComplexity"].includes(key)) raw = `${player[key] || "pending"} vs ${data.problem?.[key === "timeComplexity" ? "optimalTime" : "optimalSpace"] || "optimal unavailable"} · AI estimate`;
-      else if (key === "quality") raw = numeric(scores[side]) ? `${number(scores[side])}/100 · AI estimate` : "AI analysis unavailable";
-      else raw = `${number(player.interview?.score)}/100 · ${number(player.interview?.answered, 0)}/${number(player.interview?.total, 0)} answered`;
-      const points = player.points?.[key];
-      return valueCell(`${numeric(scores[side]) ? scoreBar(scores[side], side) : pending(reason)}<small class="mono">${escapeHtml(raw)}</small><small class="mono">${numeric(points) ? `${number(points, 2)} points contributed` : "— · No scored contribution"}</small>`, side, edge);
-    }).join("");
-    return `<tr><th scope="row">${label}</th><td>${weightHtml}</td>${cells}${edgeCell(edge)}</tr>`;
-  });
-  const totalEdge = compare(...totals, { unit: " pts" });
-  matrix.push(`<tr class="total"><th scope="row">Total</th><td>${Object.keys(data.scoring?.activeWeights || {}).length ? "100%" : "—"}</td>${players.map((player, side) => valueCell(`${numeric(totals[side]) ? scoreBar(totals[side], side) : pending("Total unavailable")}<small class="mono">${number(totals[side], 2)} total points</small>`, side, totalEdge)).join("")}${edgeCell(totalEdge)}</tr>`);
-  setHtml("report-matrix-rows", matrix.join(""));
-  const legend = players.map((player, side) => `<span>${escapeHtml(playerName(player, side))}</span>`).join("");
-  setHtml("report-radar-legend", legend);
-  setHtml("report-timeline-legend", legend);
-  setHtml("report-score-radar", renderRadar(players));
-  setHtml("report-timeline", renderTimeline(data, players));
-  setHtml("report-quality-head", comparisonHead(players));
-  const qualityRows = ["naming", "readability", "maintainability", "idioms"].map((key) => {
-    const values = players.map((player) => player.quality?.[key]);
-    return comparisonRow(key[0].toUpperCase() + key.slice(1), values, values.map((value) => numeric(value) ? `${number(value)} / 10` : pending("AI analysis unavailable")), { unit: " / 10", reason: "AI analysis unavailable" });
-  });
-  [ ["score", "Interview score"], ["understanding", "Understanding"], ["answered", "Interview answered"] ].forEach(([key, label]) => {
-    const values = players.map((player) => key === "score" ? player.scores?.interview : player.interview?.[key]);
-    qualityRows.push(comparisonRow(label, values, values.map((value, side) => numeric(value) ? `${number(value, key === "answered" ? 0 : 1)} / ${key === "answered" ? number(players[side].interview?.total, 0) : key === "understanding" ? "10" : "100"}` : pending("Interview not scored")), { unit: key === "answered" ? " answers" : " pts", digits: key === "answered" ? 0 : 1, reason: "Interview not scored" }));
-  });
-  setHtml("report-quality-rows", qualityRows.join(""));
-  const transcript = Array.isArray(me.interview?.perQuestion) ? me.interview.perQuestion : [];
-  setHtml("report-interview-transcript", transcript.length ? `<table class="transcript"><thead><tr><th>Question / My answer</th><th>Accuracy / 10</th><th>Depth / 10</th><th>Clarity / 10</th></tr></thead><tbody>${transcript.map((entry) => `<tr><td><p class="better">${escapeHtml(entry.question)}</p><p>${escapeHtml(entry.status === "skipped" ? "Skipped" : entry.answer || "No answer provided.")}</p><small>${escapeHtml(entry.status || "")}</small></td>${["accuracy", "depth", "clarity"].map((key) => `<td class="mono">${number(entry[key])}</td>`).join("")}</tr>`).join("")}</tbody></table>` : '<p class="muted">— · No interview transcript available for this match.</p>');
-  setHtml("report-interview-feedback", [ ["My interview strengths", me.interview?.feedback?.strengths], ["My interview tips", me.interview?.feedback?.tips] ].map(([label, values]) => {
-    const entries = Array.isArray(values) ? values.filter((value) => typeof value === "string") : [];
-    return `<div><h3>${label}</h3>${entries.length ? `<ul>${entries.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul>` : '<p class="muted">— · Interview feedback unavailable</p>'}</div>`;
-  }).join(""));
-  const auto = doc.getElementById("report-auto-draft");
-  if (auto) auto.hidden = me.resultSource !== "auto_draft";
-  const tests = Array.isArray(me.myTests) ? me.myTests : [];
-  const failures = tests.filter((test) => !test.passed);
-  setHtml("report-mistakes", failures.length ? failures.map((test) => {
-    const sample = Object.prototype.hasOwnProperty.call(test, "input") && Object.prototype.hasOwnProperty.call(test, "expected");
-    const details = sample ? [ ["Input", test.input], ["Expected", test.expected], ["Actual", test.actual] ].map(([label, value]) => `<small>${label}</small><pre>${escapeHtml(value)}</pre>`).join("") : "";
-    return `<article class="mistake"><strong>${sample ? "Sample" : "Hidden"} test ${numeric(test.index) ? test.index + 1 : ""} · Failed</strong>${details}${test.error ? `<p>${escapeHtml(test.error)}</p>` : ""}</article>`;
-  }).join("") : `<p class="muted">${tests.length ? "All recorded tests passed." : "— · No per-test details available."}</p>`);
-  let savedCode;
-  try { savedCode = JSON.parse(sessionStorage.getItem(`battle-code:${data.battleId}:${me.userId}`)); } catch {}
-  const finalCode = typeof data.myCode?.code === "string" ? data.myCode.code : savedCode?.code;
-  setText("report-final-code", typeof finalCode === "string" ? finalCode || "No code saved." : "Final code unavailable in this browser.");
-  setText("report-code-language", data.myCode?.language || savedCode?.language || "Language unavailable");
-  const tips = Array.isArray(me.feedback) ? me.feedback.filter((value) => typeof value === "string") : [];
-  setHtml("report-feedback-tips", tips.length ? `<ul>${tips.map((tip) => `<li>${escapeHtml(tip)}</li>`).join("")}</ul>` : '<p class="muted">— · Code-analysis tips unavailable.</p>');
+function RatingJourney({ me }) {
+  const ladder = getPlayerRank({ rating: me.ratingAfter });
+  const record = me.record;
+  return <section className="mr-panel mr-climb"><ReportHeading eyebrow="ONE DUEL FURTHER" title="Your climb" icon={Trophy} /><div className="mr-climb__rating"><span>{ladder.current?.name || "Arena rating"}</span><strong>{formatNumber(me.ratingAfter, 0)}<small>RR</small></strong><span className={me.ratingDelta < 0 ? "is-negative" : ""}>{signed(me.ratingDelta)} this duel</span></div>{ladder.progress != null && <><div className="mr-climb__track" aria-label={`${formatNumber(ladder.progress, 0)} percent through ${ladder.current.name}`}><span style={{ width: `${ladder.progress}%` }} /></div><p className="mr-climb__next"><span>{ladder.current.name}</span><span>{formatNumber(Math.max(0, ladder.next.min - me.ratingAfter), 0)} RR to {ladder.next.name}<ChevronRight size={11} aria-hidden="true" /></span></p></>}{ladder.current && !ladder.next && <p className="mr-climb__top-tier">You’re competing in the highest arena tier.</p>}<div className="mr-climb__stats"><div><span><Flame size={13} aria-hidden="true" />Win streak</span><strong>{formatNumber(record?.streak, 0)}</strong></div><div><span><Award size={13} aria-hidden="true" />Peak rating</span><strong>{formatNumber(record?.peakRating, 0)}<small>RR</small></strong></div><div><span><Swords size={13} aria-hidden="true" />Win rate</span><strong>{formatNumber(record?.winRate)}<small>%</small></strong></div></div><p className="mr-panel-footnote">{record ? record.isCurrent ? "Showing your current player record." : "Player record saved after this duel." : "Player record unavailable for this match."}</p></section>;
+}
+
+function RivalryRecord({ history }) {
+  const available = history && [history.total, history.wins, history.losses, history.draws].every(isNumber);
+  const total = available ? history.total : 0;
+  return <section className="mr-panel mr-rivalry"><ReportHeading eyebrow="GOOD RIVALS. BETTER STORIES." title="The rivalry" icon={Swords} />{available ? <><p className="mr-rivalry__meetings">{total === 1 ? "The first of many, perhaps." : `${formatNumber(total, 0)} duels. A story still being written.`}</p><div className="mr-rivalry__record"><div><strong>{history.wins}</strong><span>Your wins</span></div><span>:</span><div><strong>{history.losses}</strong><span>Rival wins</span></div><small>{history.draws} {history.draws === 1 ? "draw" : "draws"}</small></div><div className="mr-rivalry__track" aria-hidden="true"><span style={{ width: `${total ? history.wins / total * 100 : 0}%` }} /><span style={{ width: `${total ? history.draws / total * 100 : 0}%` }} /><span style={{ width: `${total ? history.losses / total * 100 : 0}%` }} /></div><div className="mr-recent-results"><span>Latest meetings<small>Newest first</small></span><div>{(Array.isArray(history.last) ? history.last : []).filter((value) => ["W", "L", "D"].includes(value)).map((value, index) => <span key={index} className={`mr-recent-result mr-recent-result--${value}`} title={value === "W" ? "You won" : value === "L" ? "Rival won" : "Draw"}>{value}</span>)}</div></div></> : <ReportEmpty icon={Swords} title="A new chapter awaits.">Head-to-head history is unavailable for this match.</ReportEmpty>}</section>;
+}
+
+function PlayerRecords({ me, rival }) {
+  const rows = [
+    ["Arena rating", (p) => formatNumber(p.record?.rating, 0)], ["Tier", (p) => p.record?.tier || "—"], ["Arena rank", (p) => isNumber(p.record?.rank) ? `#${formatNumber(p.record.rank, 0)}` : "—"],
+    ["Wins · Losses · Draws", (p) => p.record && [p.record.wins, p.record.losses, p.record.draws].every(isNumber) ? `${p.record.wins} · ${p.record.losses} · ${p.record.draws}` : "—"],
+    ["Win rate", (p) => isNumber(p.record?.winRate) ? `${formatNumber(p.record.winRate)}%` : "—"], ["Win streak", (p) => formatNumber(p.record?.streak, 0)], ["Peak rating", (p) => formatNumber(p.record?.peakRating, 0)], ["Duels played", (p) => formatNumber(p.record?.matches, 0)],
+  ];
+  return <details className="mr-panel mr-records"><summary><span className="mr-section-icon"><ShieldCheck size={19} aria-hidden="true" /></span><span><strong>Compare player records</strong><small>The bigger picture, beyond this duel.</small></span><ChevronDown size={18} aria-hidden="true" /></summary><div className="mr-records__body"><div className="mr-records__head"><span>Player record</span><strong>{me.username}<small>You</small></strong><strong>{rival.username}</strong></div>{rows.map(([label, render]) => <div className="mr-records__row" key={label}><span>{label}</span><strong>{render(me)}</strong><strong>{render(rival)}</strong></div>)}<p className="mr-panel-footnote">{[me, rival].map((player, index) => `${index ? "Rival" : "You"}: ${player.record ? player.record.isCurrent ? "current record" : "record includes this match" : "record unavailable"}`).join(" · ")}</p></div></details>;
 }
 
 export default function PostMortemReport({ onBack, onQueueNext }) {
-  const frameRef = useRef(null);
   const { user } = useAuth();
-  const { battleResult, setDuelState } = useBattle();
+  const { battleResult, setDuelState, joinQueue } = useBattle();
   const params = useParams();
   const navigate = useNavigate();
-  const [battleData, setBattleData] = useState(null);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [frameReady, setFrameReady] = useState(false);
-  const userId = user?._id || user?.id;
-  const me = userId && battleData?.players?.find((player) => String(player.userId) === String(userId));
-  const rival = me && battleData.players.find((player) => String(player.userId) !== String(userId));
+  const [revision, setRevision] = useState(0);
+  const [tab, setTab] = useState("overview");
+  const tabsRef = useRef(null);
+  const panelRef = useRef(null);
+  const userId = String(user?._id || user?.id || "");
+  const players = Array.isArray(data?.players) ? data.players : [];
+  const me = players.find((player) => playerId(player) === userId);
+  const rival = me && players.find((player) => playerId(player) !== userId);
 
   useEffect(() => {
-    let mounted = true;
+    const controller = new AbortController();
     setLoadError("");
-    if (battleResult && (!params.id || String(params.id) === String(battleResult.battleId))) {
-      setBattleData(battleResult);
-      return;
+    setLoading(true);
+    setData(null);
+    if (battleResult && (!params.id || String(params.id) === String(battleResult.battleId)) && ["finished", "abandoned"].includes(battleResult.status)) {
+      setData(battleResult); setLoading(false); return;
     }
-    setBattleData(null);
-    const id = params.id || localStorage.getItem("lastBattleId");
-    if (!id) { setLoadError("No match report available."); return; }
-    api.get(`/battles/${id}`).then((res) => {
-      if (!mounted) return;
-      const data = res.data?.data;
-      if (["finished", "abandoned"].includes(data?.status)) setBattleData(data);
-      else setLoadError(data ? "This duel has not finished yet. Return to the battle room." : "No match report available.");
-    }).catch(() => { if (mounted) setLoadError("Could not load this match report. Refresh to retry."); });
-    return () => { mounted = false; };
-  }, [battleResult, params.id]);
+    let id = params.id;
+    if (!id) { try { id = localStorage.getItem("lastBattleId"); } catch {} }
+    if (!id) { setLoadError("There’s no saved match report to open yet. Play a duel to start your story."); setLoading(false); return; }
+    api.get(`/battles/${encodeURIComponent(id)}`, { signal: controller.signal }).then((response) => {
+      if (controller.signal.aborted) return;
+      const result = response.data?.data;
+      if (!result || String(result.battleId) !== String(id)) throw new Error("Report unavailable");
+      if (!["finished", "abandoned"].includes(result.status)) { setLoadError("This duel is still in progress. Your final report will be available when the match is saved."); return; }
+      setData(result);
+    }).catch((error) => { if (!controller.signal.aborted) setLoadError(error.response?.status === 403 ? "This report is only available to the players in this duel." : "Your report couldn’t load. Give it another try."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [battleResult, params.id, revision]);
 
-  useEffect(() => {
-    const doc = frameRef.current?.contentDocument;
-    if (frameReady && doc && battleData && me && rival) populateDoc(doc, battleData, [me, rival]);
-  }, [frameReady, battleData, me, rival]);
+  useEffect(() => { setTab("overview"); }, [data?.battleId]);
 
-  useEffect(() => {
-    const doc = frameRef.current?.contentDocument;
-    if (!frameReady || !doc) return;
-    const queue = () => { setDuelState?.("closed"); onQueueNext?.(); };
-    const click = (event) => {
-      const button = event.target.closest("button");
-      if (!button) return;
-      if (button.id === "main-queue-next") queue();
-      else if (button.dataset.path === "command-deck") {
-        setDuelState?.("closed");
-        if (onBack) onBack();
-        else navigate("/dashboard");
-      }
-    };
-    const keydown = (event) => {
-      if (event.defaultPrevented || event.repeat || event.altKey || event.ctrlKey || event.metaKey || /^(INPUT|TEXTAREA|BUTTON|A|SELECT|PRE)$/.test(event.target.tagName)) return;
-      if (event.code === "Enter") { event.preventDefault(); queue(); }
-    };
-    doc.addEventListener("click", click);
-    doc.addEventListener("keydown", keydown);
-    return () => { doc.removeEventListener("click", click); doc.removeEventListener("keydown", keydown); };
-  }, [frameReady, setDuelState, onQueueNext, onBack, navigate]);
+  const back = () => { setDuelState?.("closed"); onBack?.(); navigate("/dashboard"); };
+  const queue = () => { if (onQueueNext) onQueueNext(); else joinQueue?.("ranked_1v1"); };
+  const selectTab = (key) => {
+    setTab(key);
+    requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
+  };
+  const openBreakdown = () => selectTab("scores");
 
-  const ready = !!(battleData && me && rival);
-  const error = loadError || (battleData && userId && !ready ? "The logged-in player could not be matched to both result participants." : "");
-  return (
-    <>
-      {!ready && <p role="status" className="p-8 text-center text-[#FDDF49]">{error || "Loading match report…"}</p>}
-      <iframe ref={frameRef} style={{ visibility: ready ? "visible" : "hidden" }} src="/match-report.html" title="Match post-mortem and player comparison" onLoad={() => setFrameReady(true)} className="arena-page-background block h-[calc(100dvh-64px)] w-full border-0" />
-    </>
-  );
+  if (loading || loadError || !me || !rival) {
+    const abandoned = data?.status === "abandoned";
+    const error = loadError || (!loading && !abandoned ? "The player details for this report are unavailable." : "");
+    return <section className="match-report mr-route-state"><div className="mr-route-state__icon">{loading ? <LoaderCircle size={32} className="mr-spin" aria-hidden="true" /> : abandoned ? <Swords size={34} aria-hidden="true" /> : <CircleAlert size={34} aria-hidden="true" />}</div><p className="mr-eyebrow">{loading ? "THE LAST WORD ON YOUR DUEL" : "A MOMENT BETWEEN MATCHES"}</p><h1>{loading ? "Putting your story together." : abandoned ? "This duel ended early." : "Your report is taking a moment."}</h1><p role={error ? "alert" : "status"}>{loading ? "Gathering the result, your code, and the details that mattered." : abandoned ? "The match was abandoned. No winner was declared." : error}</p>{!loading && <div>{!abandoned && <button type="button" className="mr-button mr-button--primary" onClick={() => setRevision((value) => value + 1)}><RotateCcw size={14} aria-hidden="true" />Try again</button>}<button type="button" className="mr-button" onClick={back}><ArrowLeft size={14} aria-hidden="true" />Command Deck</button></div>}</section>;
+  }
+
+  const outcome = resultOutcome(data, me);
+  const difference = biggestDifference(me, rival);
+  const token = String(data.battleId || "").slice(-8).toUpperCase();
+  return <div className="match-report" data-outcome={outcome.key}>
+    <div className="mr-wrap">
+      <div className="mr-page-top"><button type="button" onClick={back}><ArrowLeft size={13} aria-hidden="true" />Command Deck<span>/</span><strong>Match report</strong></button><span className="mr-match-id"><ShieldCheck size={13} aria-hidden="true" />FINAL RESULT<i />#DUEL-{token}</span></div>
+      <section className="mr-hero" aria-labelledby="mr-verdict">
+        <div className="mr-hero__main"><div className="mr-hero__copy"><p className="mr-eyebrow"><span />RANKED 1V1<span className="mr-eyebrow__separator">/</span>{outcome.key === "victory" ? "DUEL WON" : outcome.key === "defeat" ? "DUEL LOST" : "DUEL COMPLETE"}</p><h1 id="mr-verdict">{outcome.label}</h1><p className="mr-hero__line">{outcome.line}</p><p className="mr-hero__description">{outcome.description}</p><div className="mr-challenge"><Code2 size={14} aria-hidden="true" /><strong>{data.problem?.title || "Ranked duel"}</strong>{data.problem?.difficulty && <span className={`mr-difficulty mr-difficulty--${data.problem.difficulty}`}>{data.problem.difficulty}</span>}</div></div><ArenaSeal outcome={outcome.key} /><div className="mr-hero__rewards"><div><span>RATING CHANGE</span><strong className={me.ratingDelta < 0 ? "is-negative" : ""}>{signed(me.ratingDelta)}<small>RR</small></strong></div><div><span>EXPERIENCE EARNED</span><strong>{signed(me.xpGained)}<small>XP</small></strong></div><div><span>TESTS PASSED</span><strong>{formatNumber(me.passedCount, 0)}<small>/{formatNumber(me.totalTests, 0)}</small></strong></div></div></div>
+        <div className="mr-faceoff"><PlayerResult player={me} own winner={String(data.winner) === playerId(me)} draw={outcome.key === "draw"} /><div className="mr-faceoff__vs"><span>VS</span><Swords size={18} strokeWidth={1.3} aria-hidden="true" /></div><PlayerResult player={rival} winner={String(data.winner) === playerId(rival)} draw={outcome.key === "draw"} /></div>
+      </section>
+
+      <div ref={tabsRef} className="mr-tabs" role="tablist" aria-label="Match report sections" onKeyDown={(event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const index = TABS.findIndex((item) => item.key === tab);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+        selectTab(TABS[next].key); tabsRef.current?.querySelectorAll('[role="tab"]')[next]?.focus();
+      }}>{TABS.map(({ key, label, icon: Icon }) => <button type="button" role="tab" id={`mr-tab-${key}`} key={key} aria-selected={tab === key} aria-controls={`mr-panel-${key}`} tabIndex={tab === key ? 0 : -1} onClick={() => selectTab(key)}><Icon size={15} aria-hidden="true" /><span>{label}</span>{key === "interview" && Array.isArray(me.interview?.perQuestion) && me.interview.perQuestion.length > 0 && <small>{me.interview.perQuestion.length}</small>}</button>)}<span className="mr-tabs__closed"><Check size={12} aria-hidden="true" />Duel complete</span></div>
+
+      <div ref={panelRef} className="mr-tab-panel" role="tabpanel" id={`mr-panel-${tab}`} aria-labelledby={`mr-tab-${tab}`} tabIndex={0}>
+        {tab === "overview" ? <div className="mr-overview"><div className="mr-overview__top"><section className="mr-panel mr-performance"><ReportHeading eyebrow="TWO APPROACHES. ONE ARENA." title="Your performance fingerprint" icon={Radar} /><ReportLegend me={me} rival={rival} /><div className="mr-performance__body"><ScoreRadar me={me} rival={rival} /><div className="mr-performance__insight"><span className="mr-insight-icon"><Sparkles size={19} aria-hidden="true" /></span><p className="mr-eyebrow">THE SCORING EDGE</p>{difference ? <><h3>{difference.label}<span>{signed(difference.difference, 2)} <small>pts</small></span></h3><p>{difference.difference > 0 ? "You earned" : `${rival.username || "Your rival"} earned`} {formatNumber(Math.abs(difference.difference), 2)} more contributed points here. The largest component difference in this duel.</p></> : <><h3>Every detail counts.</h3><p>Explore each available component and how it contributed to the final score.</p></>}<button type="button" className="mr-text-button" onClick={openBreakdown}>Explore the breakdown<ArrowRight size={13} aria-hidden="true" /></button></div></div></section><RatingJourney me={me} /></div><div className="mr-overview__bottom"><RivalryRecord history={data.headToHead} /><section className="mr-panel mr-submissions"><ReportHeading eyebrow="THE MOVES THAT GOT YOU HERE" title="Your submission story" icon={Activity} /><ReportLegend me={me} rival={rival} /><SubmissionTimeline data={data} me={me} rival={rival} /></section></div><PlayerRecords me={me} rival={rival} /></div> : tab === "scores" ? <ScoreBreakdown data={data} me={me} rival={rival} /> : tab === "interview" ? <InterviewReview me={me} rival={rival} /> : <CodeReview data={data} me={me} rival={rival} />}
+      </div>
+      <p className="mr-endnote"><Swords size={13} aria-hidden="true" />Every duel leaves you with something. Take it into the next one.</p>
+    </div>
+    <footer className="mr-actions"><div><span className="mr-actions__mark"><Swords size={20} aria-hidden="true" /></span><div><strong>The next chapter is yours.</strong><span>Another rival. Another chance to climb.</span></div></div><div><button type="button" className="mr-button" onClick={back}><ArrowLeft size={14} aria-hidden="true" /><span>Command Deck</span></button><button type="button" className="mr-button mr-button--primary" onClick={queue}><Swords size={15} aria-hidden="true" />Find my next duel<ArrowUpRight size={16} aria-hidden="true" /></button></div></footer>
+  </div>;
 }

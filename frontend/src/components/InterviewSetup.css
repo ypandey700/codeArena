@@ -1,0 +1,115 @@
+.iv-setup { background: radial-gradient(ellipse at 18% 36%, #d5c36408, transparent 48%), #0c1217; }
+.iv-setup__private { display: inline-flex; align-items: center; gap: 7px; color: #809a99; font-size: 10px; }
+.iv-setup__scroll { flex: 1; min-height: 0; overflow: auto; }
+.iv-setup__main { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); align-items: center; gap: clamp(30px, 6vw, 92px); width: 100%; max-width: 1120px; min-height: 100%; margin: 0 auto; padding: 35px 35px 30px; }
+.iv-setup__symbol { position: relative; display: grid; place-items: center; width: 75px; height: 75px; margin-bottom: 29px; border: 1px solid #d9c66c38; border-radius: 23px; background: #d9c66c08; color: #dcc979; transform: rotate(-6deg); }
+.iv-setup__symbol > svg { transform: rotate(6deg); }
+.iv-setup__symbol > i { position: absolute; inset: -7px; border: 1px dashed #d9c66c1b; border-radius: 28px; }
+.iv-setup__symbol > i + i { inset: -14px; border-style: solid; border-color: #d9c66c08; border-radius: 34px; }
+.iv-setup__intro > .iv-eyebrow { font-size: 8px; letter-spacing: .16em; }
+.iv-setup__intro h1 { margin: 13px 0 18px; color: #e6e9de; font-size: clamp(31px, 3.5vw, 46px); font-weight: 520; line-height: 1.22; letter-spacing: -.055em; }
+.iv-setup__intro h1 em { color: #e2cb78; font-family: Georgia, "Times New Roman", serif; font-weight: 400; }
+.iv-setup__intro > p:not(.iv-eyebrow):not(.iv-setup__tip) { max-width: 39ch; color: #8ca6b2; font-size: 12px; line-height: 1.9; }
+.iv-setup__challenge { display: flex; align-items: center; gap: 8px; margin-top: 19px; color: #a8b6a5; font-size: 10px; }
+.iv-setup__challenge > svg { flex-shrink: 0; color: #b7ab6a; }
+.iv-setup__challenge > span { overflow-wrap: anywhere; }
+.iv-setup__steps { display: flex; flex-direction: column; gap: 17px; margin-top: 29px !important; padding: 23px 0 0; border-top: 1px solid #ffffff0d; list-style: none; }
+.iv-setup__steps li { display: flex; gap: 13px; }
+.iv-setup__steps li > span { display: grid; flex-shrink: 0; place-items: center; width: 25px; height: 25px; border: 1px solid #d3bf642c; border-radius: 7px; background: #d3bf6405; color: #c2b475; font: 9px ui-monospace, monospace; }
+.iv-setup__steps strong { color: #bfcfd1; font-size: 11px; font-weight: 500; }
+.iv-setup__steps p { max-width: 37ch; margin-top: 4px; color: #718f9f; font-size: 10px; line-height: 1.8; }
+.iv-setup__tip { display: flex; align-items: flex-start; gap: 7px; margin-top: 24px !important; color: #809990; font-size: 9px; line-height: 1.7; }
+.iv-setup__tip > svg { flex-shrink: 0; margin-top: 1px; }
+.iv-setup__checks { display: flex; flex-direction: column; gap: 13px; min-width: 0; }
+.iv-setup__browser { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #8ea99726; border-radius: 8px; background: #8ea99705; color: #91aa9d; }
+.iv-setup__browser > svg { flex-shrink: 0; }
+.iv-setup__browser > svg:last-child { margin-left: auto; }
+.iv-setup__browser strong { color: #a6bda9; font-size: 10px; font-weight: 500; }
+.iv-setup__browser p { margin-top: 4px; color: #728e90; font-size: 9px; line-height: 1.6; }
+.iv-setup__card { padding: 19px 19px 0; border: 1px solid #ffffff12; border-radius: 11px; background: #121d25; }
+.iv-setup__card-heading { display: flex; align-items: center; gap: 11px; }
+.iv-setup__card-heading > span { display: grid; flex-shrink: 0; place-items: center; width: 34px; height: 34px; border: 1px solid #d1c16f22; border-radius: 10px; background: #d1c16f06; color: #c2b47a; }
+.iv-setup__card-heading h2 { color: #d8e1db; font-size: 13px; font-weight: 500; letter-spacing: -.02em; }
+.iv-setup__card-heading p { margin-top: 4px; color: #7894a3; font-size: 9px; line-height: 1.7; }
+.iv-setup__modes { display: flex; gap: 7px; margin-top: 17px; }
+.iv-setup__modes button { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px; border: 1px solid #ffffff13; border-radius: 6px; background: #0b151d; color: #8aa5b4; font-size: 10px; }
+.iv-setup__modes button[aria-pressed="true"] { border-color: #d8c57550; background: #d8c57508; color: #dacb8a; }
+.iv-setup__device { display: flex; align-items: center; gap: 10px; margin-top: 18px; color: #9fa992; }
+.iv-setup__device > svg { flex-shrink: 0; }
+.iv-setup__device strong { color: #bac8c5; font-size: 11px; font-weight: 500; }
+.iv-setup__device p { max-width: 43ch; margin-top: 4px; color: #7c96a3; font-size: 9px; line-height: 1.7; overflow-wrap: anywhere; }
+.iv-setup__device.is-ready { color: #a4c293; }
+.iv-setup__device.is-ready strong { color: #adbf9f; }
+.iv-setup__mic-check { width: 100%; min-height: 36px; margin-top: 14px; border-color: #bda95642; background: #bda95608; color: #c8ba80; }
+.iv-setup__notice { display: flex; align-items: flex-start; gap: 6px; margin-top: 11px !important; color: #c1ab84; font-size: 10px; line-height: 1.7; }
+.iv-setup__notice > svg { flex-shrink: 0; margin-top: 3px; }
+.iv-setup__typed { display: flex; align-items: flex-start; gap: 8px; min-height: 65px; margin-top: 18px !important; padding: 12px; border: 1px solid #8fa8aa20; border-radius: 6px; background: #0b151d66; color: #94aeb7; font-size: 10px; line-height: 1.8; }
+.iv-setup__typed > svg { flex-shrink: 0; margin-top: 2px; }
+.iv-setup__preference { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 15px; min-height: 63px; margin-top: 17px; padding: 13px 0; border-top: 1px solid #ffffff0b; cursor: pointer; }
+.iv-setup__preference strong { display: block; color: #a6bac0; font-size: 10px; font-weight: 450; }
+.iv-setup__preference small { display: block; margin-top: 4px; color: #6c8b9d; font-size: 8px; line-height: 1.7; }
+.iv-setup__preference > input { position: absolute; right: 0; width: 31px; height: 19px; margin: 0; opacity: 0; }
+.iv-setup__toggle { display: flex; flex-shrink: 0; align-items: center; width: 28px; height: 16px; padding: 3px; border: 1px solid #7b95a43d; border-radius: 11px; background: #ffffff04; }
+.iv-setup__toggle::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #678597; transition: transform 150ms; }
+.iv-setup__preference input:checked + .iv-setup__toggle { border-color: #b6cba34a; background: #b6cba30a; }
+.iv-setup__preference input:checked + .iv-setup__toggle::after { transform: translateX(12px); background: #b0c79f; }
+.iv-setup__preference input:focus-visible + .iv-setup__toggle { outline: 2px solid #fddf49; outline-offset: 3px; }
+.iv-setup__preference input:disabled + .iv-setup__toggle { opacity: .4; }
+.iv-setup__speaker { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+.iv-setup__speaker .iv-button { min-height: 33px; padding: 7px 11px; font-size: 9px; }
+.iv-setup__speaker > span { display: inline-flex; flex: 1; align-items: center; gap: 4px; min-width: 110px; color: #7c989e; font-size: 9px; line-height: 1.7; }
+.iv-setup__privacy { display: flex; align-items: flex-start; gap: 7px; padding: 0 4px; color: #648596; font-size: 9px; line-height: 1.8; }
+.iv-setup__privacy > svg { flex-shrink: 0; margin-top: 2px; color: #839c94; }
+.iv-setup__footer { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 18px; min-height: 79px; padding: 15px max(24px, calc((100vw - 1050px) / 2)); border-top: 1px solid #ffffff12; background: #101a21; }
+.iv-setup__footer > div:last-child { display: flex; align-items: center; gap: 19px; }
+.iv-setup__footer strong { color: #aebeb8; font-size: 11px; font-weight: 450; }
+.iv-setup__footer p { display: flex; align-items: center; gap: 5px; margin-top: 6px; color: #6e8b99; font-size: 9px; }
+.iv-setup__footer .iv-button { min-width: 150px; }
+
+@media (max-width: 850px) {
+  .iv-setup__main { gap: 30px; padding: 28px 24px; }
+  .iv-setup__intro h1 { font-size: 35px; }
+  .iv-setup__symbol { width: 60px; height: 60px; margin-bottom: 25px; border-radius: 19px; }
+  .iv-setup__symbol > svg { width: 30px; }
+  .iv-setup__card { padding: 15px 15px 0; }
+  .iv-setup__modes button { gap: 5px; font-size: 9px; }
+  .iv-setup__footer { padding-right: 24px; padding-left: 24px; }
+}
+@media (max-width: 680px) {
+  .iv-setup__private { font-size: 8px; }
+  .iv-setup__main { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 23px; max-width: 500px; min-height: 0; padding: 27px 19px 22px; }
+  .iv-setup__symbol { display: none; }
+  .iv-setup__intro > .iv-eyebrow { font-size: 7px; }
+  .iv-setup__intro h1 { margin-top: 11px; margin-bottom: 12px; font-size: 35px; }
+  .iv-setup__intro h1 br { display: none; }
+  .iv-setup__intro > p:not(.iv-eyebrow):not(.iv-setup__tip) { max-width: none; font-size: 11px; }
+  .iv-setup__challenge { margin-top: 13px; font-size: 9px; }
+  .iv-setup__steps { flex-direction: row; gap: 10px; margin-top: 18px !important; padding-top: 15px; }
+  .iv-setup__steps li { flex: 1; flex-direction: column; gap: 8px; }
+  .iv-setup__steps li > span { width: 21px; height: 21px; font-size: 8px; }
+  .iv-setup__steps strong { font-size: 9px; line-height: 1.7; }
+  .iv-setup__steps p, .iv-setup__tip { display: none; }
+  .iv-setup__checks { gap: 11px; }
+  .iv-setup__card { padding: 16px 16px 0; }
+  .iv-setup__card-heading h2 { font-size: 12px; }
+  .iv-setup__modes button { min-height: 38px; font-size: 9px; }
+  .iv-setup__footer { align-items: stretch; flex-direction: column; gap: 12px; min-height: 0; padding: 12px 19px 15px; }
+  .iv-setup__footer > div:first-child { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px; }
+  .iv-setup__footer strong { font-size: 9px; }
+  .iv-setup__footer p { margin: 0; font-size: 8px; }
+  .iv-setup__footer > div:last-child { justify-content: space-between; gap: 12px; }
+  .iv-setup__footer .iv-text-button { font-size: 9px; }
+  .iv-setup__footer .iv-button { flex: 1; min-height: 39px; max-width: 190px; margin-left: auto; font-size: 10px; }
+}
+@media (max-height: 500px) {
+  .iv-setup__footer { min-height: 0; padding-top: 10px; padding-bottom: 10px; }
+  .iv-setup__main { align-items: start; }
+}
+@media (max-width: 360px) {
+  .iv-setup__main { padding-right: 13px; padding-left: 13px; }
+  .iv-setup__intro h1 { font-size: 31px; }
+  .iv-setup__card { padding-right: 13px; padding-left: 13px; }
+  .iv-setup__modes button { font-size: 8px; }
+  .iv-setup__modes button > svg:last-child:not(:first-child) { width: 10px; }
+  .iv-setup__footer { padding-right: 13px; padding-left: 13px; }
+}

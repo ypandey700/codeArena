@@ -31,6 +31,10 @@ export function BattleProvider({ children }) {
   const [battleResult, setBattleResult] = useState(null);
   const [duelState, setDuelState] = useState("closed");
   const [timeOffset, setTimeOffset] = useState(0);
+  const [resultSync, setResultSync] = useState({ checking: false, error: "", lastCheckedAt: null });
+  const resultRequestRef = useRef(null);
+  const forfeitRequestRef = useRef(null);
+  const [forfeitPending, setForfeitPending] = useState(false);
   const [interview, setInterview] = useState(null);
   const interviewRef = useRef(null);
   const interviewVersionRef = useRef(0);
@@ -60,10 +64,11 @@ export function BattleProvider({ children }) {
     completedBattleRef.current = data.battleId;
     activeBattleRef.current = null;
     setBattleResult(data);
-    localStorage.setItem("lastBattleId", data.battleId);
-    refreshUser?.();
     setActiveBattle(null);
     setDuelState("report_full");
+    setResultSync({ battleId: data.battleId, checking: false, error: "", lastCheckedAt: Date.now() });
+    try { localStorage.setItem("lastBattleId", data.battleId); } catch {}
+    refreshUser?.();
   }, [refreshUser]);
 
   const rememberCode = (battleId, language, code) => {
@@ -130,7 +135,7 @@ export function BattleProvider({ children }) {
     return ack;
   }, [mergeInterview, joinInterview]);
 
-  const applyBattleState = (data) => {
+  const applyBattleState = useCallback((data) => {
     if (!data || data.battleId === completedBattleRef.current) return;
     if (data.serverNow) {
       setTimeOffset(data.serverNow - Date.now());
@@ -162,24 +167,68 @@ export function BattleProvider({ children }) {
         if (getSocket()?.connected) joinInterview().catch(() => {});
       }
     }
-  };
+  }, [joinInterview, mergeInterview]);
+
+  const refreshBattleResult = useCallback(() => {
+    const battle = activeBattleRef.current;
+    if (!battle?.battleId) return Promise.resolve(null);
+    const battleId = battle.battleId;
+    if (resultRequestRef.current?.battleId === battleId) return resultRequestRef.current.promise;
+
+    const request = { battleId, promise: null };
+    resultRequestRef.current = request;
+    request.promise = (async () => {
+      setResultSync((previous) => ({ ...previous, battleId, checking: true, error: "" }));
+      try {
+        if (battle.status !== "finalizing") {
+          const response = await api.get("/battles/active", { timeout: 10000 });
+          if (activeBattleRef.current?.battleId !== battleId) return null;
+          const current = response.data?.data?.battle;
+          if (current?.battleId === battleId) {
+            applyBattleState(current);
+            if (current.status !== "finalizing") {
+              setResultSync({ battleId, checking: false, error: "", lastCheckedAt: Date.now() });
+              return current;
+            }
+          }
+        }
+        const response = await api.get(`/battles/${battleId}`, { timeout: 10000 });
+        if (activeBattleRef.current?.battleId !== battleId) return null;
+        const data = response.data?.data;
+        if (data?.battleId !== battleId) throw new Error("Unexpected battle result");
+        if (["finished", "abandoned"].includes(data.status)) receiveBattleResult(data);
+        else setResultSync({ battleId, checking: false, error: "", lastCheckedAt: Date.now() });
+        return data;
+      } catch {
+        if (activeBattleRef.current?.battleId === battleId) {
+          setResultSync({ battleId, checking: false, error: "Could not check the saved result. Please try again.", lastCheckedAt: Date.now() });
+        }
+        return null;
+      } finally {
+        if (resultRequestRef.current === request) resultRequestRef.current = null;
+      }
+    })();
+    return request.promise;
+  }, [applyBattleState, receiveBattleResult]);
 
   useEffect(() => {
-    if (activeBattle?.status !== "finalizing") return;
-    const battleId = activeBattle.battleId;
+    if (!activeBattle?.battleId || (activeBattle.status !== "finalizing" && activeBattle.myPhase !== "done")) return;
     let cancelled = false;
+    let checking = false;
     let timer;
     const sync = async () => {
-      try {
-        const response = await api.get(`/battles/${battleId}`, { timeout: 10000 });
-        const data = response.data?.data;
-        if (!cancelled && activeBattleRef.current?.battleId === battleId && data?.status === "finished") receiveBattleResult(data);
-      } catch {}
-      if (!cancelled) timer = setTimeout(sync, 3000);
+      if (cancelled || checking) return;
+      checking = true;
+      clearTimeout(timer);
+      try { await refreshBattleResult(); }
+      finally { checking = false; if (!cancelled) timer = setTimeout(sync, 3000); }
     };
+    const resume = () => { if (document.visibilityState === "visible") sync(); };
     sync();
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [activeBattle?.battleId, activeBattle?.status, receiveBattleResult]);
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => { cancelled = true; clearTimeout(timer); window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
+  }, [activeBattle?.battleId, activeBattle?.status, activeBattle?.myPhase, refreshBattleResult]);
 
   useEffect(() => {
     if (inQueue) {
@@ -224,7 +273,8 @@ export function BattleProvider({ children }) {
         if (socket?.connected && b.battleId) {
           socket.emit("battle_join", { battleId: b.battleId }, (ack) => {
             if (ack?.success && ack.data) {
-              applyBattleState(ack.data);
+              if (ack.data.status === "finished") refreshBattleResult();
+              else applyBattleState(ack.data);
             }
           });
         }
@@ -236,7 +286,7 @@ export function BattleProvider({ children }) {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, applyBattleState, refreshBattleResult]);
 
   useEffect(() => {
     if (!user) return;
@@ -253,15 +303,24 @@ export function BattleProvider({ children }) {
         if (currentBattleId) {
           socket.emit("battle_join", { battleId: currentBattleId }, (ack) => {
             if (ack?.success && ack.data) {
-              applyBattleState(ack.data);
+              if (ack.data.status === "finished") refreshBattleResult();
+              else applyBattleState(ack.data);
             }
           });
+          if (activeBattleRef.current?.myPhase === "done" || activeBattleRef.current?.status === "finalizing") refreshBattleResult();
         }
       };
 
       const onQueueStatus = (data) => {
         if (data.waitingSeconds !== undefined) setQueueTime(data.waitingSeconds);
         if (data.playersInQueue !== undefined) setPlayersInQueue(data.playersInQueue);
+      };
+
+      const onQueueError = (data) => {
+        setInQueue(false);
+        setPlayersInQueue(0);
+        setDuelState("closed");
+        alert(data?.message || "Could not find a match. Please try again.");
       };
 
       const onMatchFound = (data) => {
@@ -297,7 +356,8 @@ export function BattleProvider({ children }) {
       };
 
       const onBattleState = (data) => {
-        applyBattleState(data);
+        if (data?.status === "finished") refreshBattleResult();
+        else applyBattleState(data);
       };
 
       const onBattleChatMessage = (msg) => {
@@ -375,6 +435,7 @@ export function BattleProvider({ children }) {
 
       socket.on("connect", onConnect);
       socket.on("queue_status", onQueueStatus);
+      socket.on("queue_error", onQueueError);
       socket.on("match_found", onMatchFound);
       socket.on("match_cancelled", onMatchCancelled);
       socket.on("battle_start", onBattleStart);
@@ -397,6 +458,7 @@ export function BattleProvider({ children }) {
       cleanupSocket = () => {
         socket.off("connect", onConnect);
         socket.off("queue_status", onQueueStatus);
+        socket.off("queue_error", onQueueError);
         socket.off("match_found", onMatchFound);
         socket.off("match_cancelled", onMatchCancelled);
         socket.off("battle_start", onBattleStart);
@@ -424,7 +486,7 @@ export function BattleProvider({ children }) {
       clearInterval(socketInterval);
       cleanupSocket?.();
     };
-  }, [user, receiveBattleResult]);
+  }, [user, receiveBattleResult, applyBattleState, refreshBattleResult]);
 
   const joinQueue = (mode = "ranked_1v1") => {
     const socket = getSocket();
@@ -451,6 +513,7 @@ export function BattleProvider({ children }) {
         } else {
           setInQueue(false);
           setDuelState("closed");
+          alert(ack.message || "Could not join the queue. Please try again.");
         }
       }
     });
@@ -488,14 +551,39 @@ export function BattleProvider({ children }) {
     setDuelState("closed");
   };
 
-  const forfeitBattle = (onFail) => {
-    if (!activeBattle) return;
+  const forfeitBattle = () => {
+    if (forfeitRequestRef.current) return forfeitRequestRef.current;
+    const battle = activeBattleRef.current;
     const socket = getSocket();
-    socket?.emit("battle_forfeit", { battleId: activeBattle.battleId }, (ack) => {
-      if (ack && !ack.success) {
-        onFail?.(ack.message || "Failed to forfeit battle");
+    if (!battle?.battleId || battle.status !== "active") return Promise.reject(new Error("This duel has already ended or is saving its result."));
+    if (!socket?.connected) return Promise.reject(new Error("Reconnect before surrendering. Your duel is still active."));
+    setForfeitPending(true);
+    const request = new Promise((resolve, reject) => {
+      socket.timeout(15000).emit("battle_forfeit", { battleId: battle.battleId }, (error, ack) => {
+        if (error) reject(new Error("Surrender was not confirmed. Check your connection and try again."));
+        else if (!ack?.success) reject(new Error(ack?.message || "Could not surrender. Please try again."));
+        else resolve(ack);
+      });
+    }).then((ack) => {
+      if (activeBattleRef.current?.battleId === battle.battleId) {
+        updateBattle({ status: "finalizing", myPhase: "done", ownFinished: true });
+        refreshBattleResult();
+      }
+      return ack;
+    }).catch(async (error) => {
+      // A lost acknowledgment may follow a successful surrender. Recover its result
+      // before allowing another attempt; the server still owns the outcome.
+      await refreshBattleResult();
+      if (completedBattleRef.current === battle.battleId || (activeBattleRef.current?.battleId === battle.battleId && activeBattleRef.current.status === "finalizing")) return { success: true };
+      throw error;
+    }).finally(() => {
+      if (forfeitRequestRef.current === request) {
+        forfeitRequestRef.current = null;
+        setForfeitPending(false);
       }
     });
+    forfeitRequestRef.current = request;
+    return request;
   };
 
   const sendChatMessage = (text, onFail) => {
@@ -581,6 +669,8 @@ export function BattleProvider({ children }) {
         battleResult,
         duelState,
         timeOffset,
+        resultSync,
+        refreshBattleResult,
         interview,
         joinInterview,
         answerInterview,
@@ -590,6 +680,7 @@ export function BattleProvider({ children }) {
         acceptMatch,
         declineMatch,
         forfeitBattle,
+        forfeitPending,
         sendChatMessage,
         submitBattleCode,
         saveCodeDraft,

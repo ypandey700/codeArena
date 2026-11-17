@@ -16,6 +16,8 @@ Only when both players are done and their coding results are stored can the atom
 
 Forfeit during coding or interview awards the opponent an immediate win and cancels outstanding interview work. Coding disconnects retain the reconnect grace rule. A disconnect in interview or done does not forfeit or pause any interview deadline; an earlier coding disconnect timer also cannot forfeit a player who has since entered interview. Both players disconnected while both are coding retain abandonment behavior.
 
+The coding workspace, interview setup, and interview workspace expose Surrender. Its confirmation shows the server-provided forfeitRatingLoss from battle_start or battle_state: the normal Elo loss from the saved starting ratings, capped at the 100-point rating floor. Cancelling sends no action; confirming sends battle_forfeit, waits for acknowledgment, and opens the match result through the usual finalization flow. The warning does not pause match clocks. The client prevents duplicate pending requests and offers retry on a connection or acknowledgment failure.
+
 Boot recovery clears interrupted coding claims, re-arms coding/question/interview timers, resumes the same open questions and deadlines, restarts interrupted question/scoring work, and completes stuck finalizing battles using stored results. A hard cap closes unfinished work at the later coding end + INTERVIEW_MAX_SECONDS + 30 seconds. Coding work and interview grading have bounded budgets within that cap. At the cap, unresolved technical grading is failed rather than assigned invented scores; an entirely unanswered interview remains 0.
 
 ## Interview data and scoring
@@ -44,7 +46,7 @@ Socket handlers authenticate the caller and enforce participant ownership. Stand
 
 | Client event | Payload | Behavior |
 | --- | --- | --- |
-| queue_join | {mode?} | Join ranked queue. |
+| queue_join | {mode?} | Join ranked queue; reject with an explanatory acknowledgment if no coding problems are loaded. |
 | queue_leave | {} | Leave queue. |
 | match_accept / match_decline | {battleId} | Accept/decline pending match. |
 | battle_join | {battleId} | Ack {success, data: battle_state} and emit battle_state. |
@@ -58,6 +60,7 @@ Socket handlers authenticate the caller and enforce participant ownership. Stand
 | Server event | Payload |
 | --- | --- |
 | queue_status | {waitingSeconds, playersInQueue} |
+| queue_error | {message}; match creation failed after leaving the queue. Stop searching and display the error. |
 | match_found | {battleId, acceptDeadline, serverNow, opponent, problem, ratingPreview} |
 | match_cancelled | {battleId, reason} |
 | battle_start | {battleId, serverNow, startedAt, endsAt, problem, opponent} |
@@ -94,7 +97,7 @@ battle_end and GET /battles/:id retain battleId, status, winner, reason, problem
 
 Top-level headToHead is {total, wins, losses, draws, last}, from the requesting player's perspective. Only finished battles containing both users count, including the just-finished battle. last contains up to five W/L/D values, newest createdAt first (with _id as the tie-breaker). Battle has an index on {"players.user":1, status:1, createdAt:-1}.
 
-Each player includes record {rating, tier, rank, wins, losses, draws, matches, winRate, streak, peakRating}. After both users' ratings and stats are applied, records and finished status commit in the same MongoDB transaction as those updates. rank is 1 + the count of users with a strictly higher rating in that transaction; ties share a rank. matches is wins + losses + draws, and winRate is the rounded integer win percentage, or 0 for no matches. Saved records are immutable and never recomputed by result reads. Old battles without a record use the current user values with record.isCurrent = true. Finalization requires a MongoDB replica set or sharded deployment supporting transactions.
+Each player includes record {rating, tier, rank, wins, losses, draws, matches, winRate, streak, peakRating}. Replica sets and sharded deployments commit ratings, stats, records and finished status in one transaction. Standalone MongoDB uses each user's atomic appliedBattleResults guard and marks the battle finished only after both player updates succeed; interrupted partial saves remain finalizing and retry without duplicate rating or XP awards. Only the caller that changes the battle to finished publishes battle_end. rank is 1 + the count of users with a strictly higher rating at finalization; ties share a rank. matches is wins + losses + draws, and winRate is the rounded integer win percentage, or 0 for no matches. Saved records are immutable and never recomputed by result reads. Old battles without a record use the current user values with record.isCurrent = true.
 
 Both players retain userId, username, avatar, passedCount, totalTests, solveTimeMs, runtimeMs, ratingBefore/After/Delta, xpGained, scores, detected time/space complexity, quality, finishedBy and resultSource, plus phase and interview {score, understanding, answered, total, source}. If the interview component is unavailable symmetrically, both public interview.score values are null.
 

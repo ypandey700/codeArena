@@ -1,10 +1,16 @@
 # Code Arena
 
-Competitive coding arena landing page, built with React, Vite, Tailwind CSS, and JavaScript.
+Competitive coding arena, built with React, Vite, Tailwind CSS, and JavaScript.
 
 ## Run locally
 
+Start the backend using the [backend setup instructions](backend/README.md).
+Run `npm run seed` in `backend` to load the problems required for 1v1 matchmaking.
+
+In another terminal, start the frontend:
+
 ```bash
+cd frontend
 npm install
 npm run dev
 ```

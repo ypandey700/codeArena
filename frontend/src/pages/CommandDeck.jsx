@@ -188,12 +188,12 @@ export default function CommandDeck({ onQuickDuel }) {
           </section>
 
           <section className="cd-edge" aria-labelledby="cd-edge-title">
-            <p className="cd-eyebrow"><span className="cd-diamond" />Choose your challenge</p>
-            <h2 id="cd-edge-title">Find your<br />next <em>edge.</em></h2>
-            <p>Step out of your comfort zone.<br />That's where the good stuff happens.</p>
+            <p className="cd-eyebrow"><span className="cd-diamond" />Skiller · Personal practice</p>
+            <h2 id="cd-edge-title">Turn weak spots<br />into your <em>edge.</em></h2>
+            <p>Get a question around your weak topics.<br />Solve it and build your strength.</p>
             <RivalCards />
-            <Link to="/battle-modes" className="cd-edge__action"><span>Explore battle modes</span><ArrowUpRight size={19} aria-hidden="true" /></Link>
-            <div className="cd-edge__note"><Sparkles size={13} aria-hidden="true" /><span>One arena. Room to grow.</span></div>
+            <Link to="/skiller" className="cd-edge__action"><span>Open Skiller</span><ArrowUpRight size={19} aria-hidden="true" /></Link>
+            <div className="cd-edge__note"><Sparkles size={13} aria-hidden="true" /><span>Your progress shapes the next question.</span></div>
           </section>
         </div>
 

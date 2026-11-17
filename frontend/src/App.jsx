@@ -19,6 +19,8 @@ import PostMatchResults from "./components/PostMatchResults";
 import PostMortemReport from "./components/PostMortemReport";
 
 const BattleModes = lazy(() => import("./pages/BattleModes"));
+const Skiller = lazy(() => import("./pages/Skiller"));
+const SkillerPractice = lazy(() => import("./pages/SkillerPractice"));
 
 function ProfileRedirect() {
   const { user } = useAuth();
@@ -143,6 +145,8 @@ function MainLayout() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/skiller" element={<ProtectedRoute><Suspense fallback={<div className="min-h-[calc(100dvh-64px)]" />}><Skiller /></Suspense></ProtectedRoute>} />
+            <Route path="/skiller/practice/:attemptId" element={<ProtectedRoute><Suspense fallback={<div className="min-h-[calc(100dvh-64px)]" />}><SkillerPractice /></Suspense></ProtectedRoute>} />
             <Route path="/u/:username" element={<Profile />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="*" element={<NotFound />} />
@@ -151,6 +155,8 @@ function MainLayout() {
       </div>
 
       {!isReferenceLanding &&
+        !location.pathname.startsWith("/skiller") &&
+        !location.pathname.startsWith("/match-report") &&
         !["/battle-modes", "/match-report"].includes(location.pathname) &&
         !["battle", "report", "report_full", "found"].includes(duelState) && (
           <footer className="w-full border-t border-white/[.05] bg-[#18191b] py-8">

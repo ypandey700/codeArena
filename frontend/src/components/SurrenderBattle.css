@@ -1,0 +1,32 @@
+.surrender-button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 6px; min-height: 31px; padding: 6px 9px; border: 1px solid #e59b9e30; border-radius: 6px; background: #e59b9e08; color: #dfa6a9; font: 500 10px "Inter Variable", Inter, sans-serif; white-space: nowrap; cursor: pointer; }
+.surrender-button:hover:not(:disabled) { border-color: #e59b9e66; background: #e59b9e16; color: #f3c0c3; }
+.surrender-button:disabled { opacity: .4; cursor: default; }
+.surrender-button:focus-visible, .surrender-dialog button:focus-visible { outline: 2px solid #fddf49; outline-offset: 3px; }
+.surrender-dialog { position: fixed; inset: 0; box-sizing: border-box; width: min(460px, calc(100% - 28px)); max-width: none; max-height: calc(100dvh - 28px); margin: auto; padding: 0; overflow: auto; border: 1px solid #ffffff20; border-radius: 12px; background: #141e24; color: #bdced6; box-shadow: 0 30px 100px #0008; font-family: "Inter Variable", Inter, sans-serif; }
+.surrender-dialog::backdrop { background: #040a0ed9; backdrop-filter: blur(6px); }
+.surrender-dialog * { box-sizing: border-box; }
+.surrender-dialog :is(h2, p) { margin: 0; }
+.surrender-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #ffffff12; }
+.surrender-dialog h2 { color: #e5ece9; font-size: 16px; font-weight: 550; line-height: 1.5; }
+.surrender-dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 7px 12px; border: 1px solid #ffffff20; border-radius: 6px; background: #ffffff05; color: #c9d7dc; font: 500 11px "Inter Variable", Inter, sans-serif; cursor: pointer; }
+.surrender-dialog button:hover:not(:disabled) { background: #ffffff0d; }
+.surrender-dialog button:disabled { opacity: .5; cursor: default; }
+.surrender-dialog > header button { flex-shrink: 0; width: 30px; min-height: 30px; padding: 0; }
+.surrender-dialog__body { padding: 20px; }
+.surrender-dialog__warning { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 14px; border: 1px solid #e59b9e30; border-radius: 8px; background: #e59b9e08; color: #efb1b5; }
+.surrender-dialog__warning strong { font-size: 17px; font-weight: 550; }
+.surrender-dialog__body p { color: #a4b8c3; font-size: 12px; line-height: 1.8; }
+.surrender-dialog__body p + p { margin-top: 10px; color: #829eaf; }
+.surrender-dialog .surrender-dialog__error { margin: 0 20px 18px; color: #efb1b5; font-size: 12px; line-height: 1.6; }
+.surrender-dialog > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 16px 20px; border-top: 1px solid #ffffff12; }
+.surrender-dialog .surrender-dialog__confirm { border-color: #e59b9e55; background: #e59b9e16; color: #efb1b5; }
+.surrender-dialog .surrender-dialog__confirm:hover:not(:disabled) { background: #e59b9e25; }
+.surrender-spin { animation: surrender-spin 1.5s linear infinite; }
+@keyframes surrender-spin { to { transform: rotate(360deg); } }
+@media (max-width: 620px) {
+  .surrender-button { gap: 4px; min-height: 28px; padding: 5px 7px; font-size: 9px; }
+  .surrender-button svg { width: 12px; }
+  .iv-topbar:has(.surrender-button) { flex-wrap: wrap; gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+  .iv-topbar:has(.surrender-button) .iv-topbar__actions { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .surrender-spin { animation: none; } }

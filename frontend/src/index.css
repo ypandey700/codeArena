@@ -631,16 +631,6 @@ select:focus-visible, textarea:focus-visible {
   caret-color: #e4eaf5;
 }
 
-/* Match confirmation shares the compact dashboard typography. */
-.match-found-screen {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  font-size: 13px;
-  line-height: 1.5;
-  font-feature-settings: normal;
-}
-.match-found-screen button { font-family: inherit; letter-spacing: normal; }
-.match-found-screen h1, .match-found-screen h2 { letter-spacing: normal; }
-
 /* Profile shares the dashboard/report typography and surface hierarchy. */
 .profile-dashboard, .profile-edit-modal {
   --color-primary: #fddf49;

@@ -1,0 +1,156 @@
+/* Adjustable coding workspace. */
+.ba-resize-handle { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; color: #526e7e; touch-action: none; user-select: none; border: 1px solid transparent; border-radius: 5px; }
+.ba-resize-handle--x { cursor: col-resize; }
+.ba-resize-handle--y { cursor: row-resize; }
+.ba-resize-handle svg { pointer-events: none; }
+.ba-resize-handle:hover, .ba-resize-handle:focus-visible, .ba-resize-handle:active { border-color: #fddf4930; outline: none; background: #fddf490a; color: #e7d481; }
+.ba-expand-editor[aria-pressed="true"] { border-color: #fddf4940; color: #fddf49; }
+.ba-tests > header { flex-wrap: wrap; row-gap: 0; }
+.ba-tests .ba-code-actions > p { color: #a9b5a0; }
+.ba-tests .ba-code-actions > p > span { max-width: none; }
+
+/* Both player cards stay available without leaving the duel. */
+.ba-match-strip { min-height: 80px; gap: 20px; padding: 6px 20px; }
+.coding-arena .ba-contender { display: flex; align-items: center; gap: 11px; width: 340px; min-width: 0; max-width: calc(50% - 28px); padding: 7px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; transition: background 160ms, border-color 160ms; }
+.coding-arena .ba-contender:hover { border-color: #ffffff13; background: #ffffff04; }
+.ba-player-avatar { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 39px; height: 39px; overflow: hidden; border: 1px solid #fddf4933; border-radius: 10px; background: #fddf4909; color: #ddcd83; font-size: 12px; font-weight: 550; }
+.ba-player-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ba-contender__details { flex: 1; min-width: 0; }
+.ba-contender__details strong { display: flex !important; align-items: center; gap: 6px; max-width: none; }
+.ba-contender__details strong > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ba-contender__college { display: flex; align-items: center; gap: 5px; overflow: hidden; margin-top: 4px; color: #9daeb6; font-size: 9px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.ba-contender__college svg { flex-shrink: 0; color: #7e929e; }
+.ba-contender__progress { display: block; overflow: hidden; margin-top: 3px; color: #748d9c; font-size: 8px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.ba-contender__badges { display: inline-flex; flex-shrink: 0; align-items: center; gap: 3px; margin-left: 3px; color: #d5c885; font-size: 8px; }
+.ba-contender__chevron { flex-shrink: 0; color: #586f7c; }
+.coding-arena .ba-contender--opponent { flex-direction: row-reverse; text-align: right; }
+.ba-contender--opponent .ba-player-avatar { border-color: #80a1c333; background: #80a1c308; color: #a3bdcf; }
+.ba-contender--opponent .ba-contender__details strong, .ba-contender--opponent .ba-contender__college { justify-content: flex-end; }
+.ba-dialog--player { width: min(490px, calc(100% - 28px)); }
+.ba-player-card { padding: 22px; }
+.ba-player-card__identity { display: flex; align-items: center; gap: 16px; }
+.ba-player-card__identity > .ba-player-avatar { width: 70px; height: 70px; border-radius: 17px; font-size: 24px; }
+.ba-player-card__identity > div { min-width: 0; }
+.ba-player-card__identity > div > span { color: #c7bd84; font-size: 10px; text-transform: capitalize; }
+.ba-player-card__identity h3 { overflow-wrap: anywhere; margin: 6px 0 0; color: #edf0e9; font-size: 23px; font-weight: 560; letter-spacing: -.035em; }
+.ba-player-card__college { display: flex; align-items: flex-start; gap: 9px; margin-top: 22px !important; color: #c0cfd5; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.ba-player-card__college svg { flex-shrink: 0; margin-top: 2px; color: #b3ae7b; }
+.ba-player-card__bio { margin-top: 12px !important; color: #839eac; font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
+.ba-player-card__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 22px 0; }
+.ba-player-card__stats > div { padding: 13px; border: 1px solid #ffffff0e; border-radius: 7px; background: #0d171d; }
+.ba-player-card__stats dt { display: flex; align-items: center; gap: 7px; color: #8da4b0; font-size: 10px; }
+.ba-player-card__stats dd { margin: 8px 0 0; color: #e0e7e4; font-size: 20px; font-variant-numeric: tabular-nums; }
+.ba-player-card__achievements { border-top: 1px solid #ffffff0e; padding-top: 18px; }
+.ba-player-card__achievements h3 { display: flex; align-items: center; gap: 8px; margin: 0; color: #d4d9c7; font-size: 12px; font-weight: 500; }
+.ba-player-card__achievements h3 > svg { color: #d6c67e; }
+.ba-player-card__achievements h3 > span { margin-left: auto; padding: 3px 7px; border-radius: 4px; background: #ffffff07; color: #90a3ad; font-size: 10px; }
+.ba-player-card__achievements ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 15px 0 0; padding: 0; list-style: none; }
+.ba-player-card__achievements li { display: flex; align-items: center; gap: 9px; padding: 11px; border: 1px solid #fddf4920; border-radius: 7px; background: #fddf4904; color: #d2c58b; font-size: 10px; line-height: 1.6; text-transform: capitalize; overflow-wrap: anywhere; }
+.ba-player-card__achievements li svg { flex-shrink: 0; }
+.ba-player-card__achievements > p { margin-top: 14px; color: #8da4b0; font-size: 11px; }
+.ba-player-card__notice { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 22px !important; color: #9fb4bf; font-size: 12px; line-height: 1.8; }
+
+/* Floating, nonmodal chat keeps the editor interactive. */
+.ba-chat-launcher { position: fixed; z-index: 75; right: 24px; bottom: 100px; display: flex; align-items: center; gap: 11px; padding: 11px 15px 11px 11px; border: 1px solid #e0cb5955; border-radius: 12px; background: #1b2529; color: #e6e7d7; box-shadow: 0 8px 35px #0007, 0 0 0 4px #0b111555; text-align: left; transition: border-color 160ms, transform 160ms; }
+.ba-chat-launcher:hover { border-color: #fddf4999; transform: translateY(-2px); }
+.ba-chat-launcher__icon { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 9px; background: #fddf4912; color: #fddf49; }
+.ba-chat-launcher strong { display: block; font-size: 11px; font-weight: 600; }
+.ba-chat-launcher small { display: block; margin-top: 4px; color: #9cabb1; font-size: 9px; }
+.ba-chat-launcher > b { display: grid; place-items: center; min-width: 23px; height: 23px; padding: 0 5px; border-radius: 7px; background: #fddf49; color: #272611; font-size: 11px; }
+.ba-floating-chat { position: fixed; z-index: 76; right: 24px; bottom: 100px; display: flex; flex-direction: column; width: min(360px, calc(100vw - 24px)); height: min(460px, calc(100dvh - 150px)); min-height: 235px; max-height: calc(100dvh - 16px); overflow: hidden; border: 1px solid #d4c57666; border-radius: 13px; background: #142027; color: #d5e1e3; box-shadow: 0 22px 85px #000a, 0 0 0 4px #0b111566; }
+.ba-floating-chat.is-positioned { right: auto; bottom: auto; }
+.ba-floating-chat__header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 10px; min-height: 49px; padding: 8px 12px 8px 15px; border-bottom: 1px solid #ffffff12; background: #1d2a30; cursor: move; touch-action: none; user-select: none; }
+.ba-floating-chat__title { display: flex; align-items: center; gap: 8px; color: #eadb92; font-size: 12px; }
+.ba-floating-chat__title strong { color: #e4e9e3; font-size: 12px; font-weight: 550; }
+.ba-floating-chat__title > span { padding: 3px 6px; border: 1px solid #a6c9a726; border-radius: 4px; background: #a6c9a708; color: #afd0b3; font-size: 8px; font-weight: 400; }
+.ba-chat-drag { margin-left: auto; color: #6b8490; }
+.ba-chat-rival { display: flex; flex-shrink: 0; align-items: center; gap: 10px; width: 100%; min-height: 57px; padding: 9px 15px; border: 0; border-bottom: 1px solid #ffffff0b; background: #101b22; text-align: left; }
+.ba-chat-rival:hover { background: #1a2830; }
+.ba-chat-rival > .ba-player-avatar { width: 31px; height: 31px; border-radius: 8px; font-size: 10px; }
+.ba-chat-rival > span:nth-child(2) { flex: 1; min-width: 0; }
+.ba-chat-rival strong { display: block; overflow: hidden; color: #d3e0e4; font-size: 11px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.ba-chat-rival small { display: block; overflow: hidden; margin-top: 4px; color: #8ca3af; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.ba-chat-rival__mark { flex-shrink: 0; color: #8b9f97; }
+.ba-floating-chat .ba-chat-stream { flex: 1; min-height: 0; max-height: none; gap: 11px; padding: 15px; scrollbar-gutter: stable; }
+.ba-floating-chat .ba-chat-message { max-width: 92%; padding: 9px 11px; background: #20323d; border-color: #ffffff0d; border-radius: 9px 9px 9px 2px; }
+.ba-floating-chat .ba-chat-message.is-own { border-color: #d4c57633; border-radius: 9px 9px 2px 9px; background: #343a25; }
+.ba-floating-chat .ba-chat-message.is-system { align-self: stretch; max-width: 100%; background: #c8878f08; border-color: #c8878f33; border-radius: 6px; }
+.ba-chat-message__meta { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.ba-floating-chat .ba-chat-message strong { color: #a9c3d2; font-size: 9px; }
+.ba-floating-chat .ba-chat-message.is-own strong { color: #ded097; }
+.ba-chat-message__meta time { color: #87a0ac; font-size: 8px; white-space: nowrap; }
+.ba-floating-chat .ba-chat-message p { color: #e0e8e6; font-size: 12px; line-height: 1.65; }
+.ba-floating-chat .ba-chat-empty { min-height: 100px; gap: 10px; padding: 15px 0; }
+.ba-floating-chat .ba-chat-empty p { line-height: 1.8; }
+.ba-chat-replies { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 6px; padding: 6px 13px 10px; }
+.ba-chat-replies button { padding: 5px 8px; border: 1px solid #ffffff18; border-radius: 5px; background: #ffffff03; color: #b4c3c8; font-size: 9px; }
+.ba-chat-replies button:hover { border-color: #fddf4944; color: #ecdc98; }
+.ba-floating-chat .ba-chat-form { flex-shrink: 0; gap: 8px; padding: 11px 13px 6px; border-top-color: #ffffff12; background: #111c23; }
+.ba-floating-chat .ba-chat-form input { min-height: 39px; border-color: #58728166; background: #0c171e; color: #e0e8e9; font-size: 12px; }
+.ba-floating-chat .ba-chat-form input::placeholder { color: #8aa0ad; }
+.ba-floating-chat .ba-chat-form .ba-button { min-height: 39px; padding: 9px 12px; }
+.ba-chat-hint { display: flex; flex-shrink: 0; justify-content: space-between; gap: 10px; padding: 1px 14px 10px; background: #111c23; color: #8ba0ab; font-size: 8px; }
+.ba-chat-send-error { flex-shrink: 0; max-height: 65px; overflow: auto; padding: 8px 14px; color: #e3b0ad; font-size: 10px; line-height: 1.7; }
+.ba-chat-send-error button { margin-left: 8px; padding: 0; border: 0; background: none; color: #f0d990; font-size: 10px; text-decoration: underline; }
+.ba-chat-latest { display: inline-flex; align-self: center; flex-shrink: 0; align-items: center; gap: 5px; margin-bottom: 5px; padding: 5px 9px; border: 1px solid #d4c57644; border-radius: 12px; background: #333b2b; color: #e0d59c; font-size: 9px; }
+
+@media (min-width: 901px) and (min-height: 561px) {
+  .coding-arena[data-editor-expanded="true"] .ba-workspace { grid-template-columns: minmax(0, 1fr); }
+  .coding-arena[data-editor-expanded="true"] .ba-problem, .coding-arena[data-editor-expanded="true"] .ba-resize-handle--x { display: none; }
+}
+
+@media (max-width: 1150px) {
+  .ba-editor__header { gap: 8px; padding-right: 10px; padding-left: 12px; }
+  .ba-editor__header > div { gap: 5px; }
+  .ba-editor__header .ba-step-label { font-size: 10px; }
+  .ba-editor__header .ba-step-label > span { display: none; }
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+  .ba-workspace { grid-template-columns: minmax(0, 1fr); }
+  .ba-match-strip { min-height: 77px; gap: 12px; padding: 5px 12px; }
+  .coding-arena .ba-contender { gap: 8px; max-width: calc(50% - 18px); padding: 6px; }
+  .ba-player-avatar { width: 34px; height: 34px; font-size: 10px; }
+  .ba-contender__details strong { font-size: 10px; }
+  .ba-contender__college { font-size: 8px; }
+  .ba-contender__progress { font-size: 7px; }
+  .ba-tests .ba-code-actions { display: flex; justify-content: flex-end; padding: 9px 12px; }
+  .coding-arena[data-editor-expanded="true"][data-view="code"] .ba-match-strip, .coding-arena[data-editor-expanded="true"][data-view="code"] .ba-mobile-nav { display: none; }
+  .ba-chat-launcher { right: 18px; bottom: 132px; }
+  .ba-floating-chat { right: 18px; bottom: 132px; height: min(460px, calc(100dvh - 150px)); }
+}
+
+@media (max-width: 620px) {
+  .coding-arena .ba-contender { gap: 7px; padding: 5px 0; }
+  .ba-player-avatar { width: 30px; height: 30px; border-radius: 8px; }
+  .ba-contender__chevron { display: none; }
+  .ba-contender__college { display: block; font-size: 8px; }
+  .ba-contender__college svg { display: none; }
+  .ba-contender__details strong { gap: 4px; font-size: 10px; }
+  .ba-contender__details strong small { margin-right: 0; }
+  .ba-contender__badges { gap: 1px; font-size: 7px; }
+  .ba-contender__badges svg { width: 9px; }
+  .ba-chat-launcher { right: 15px; bottom: 135px; gap: 8px; padding: 9px 11px 9px 9px; }
+  .ba-chat-launcher__icon { width: 30px; height: 30px; }
+  .ba-chat-launcher strong { font-size: 10px; }
+  .ba-chat-launcher small { font-size: 8px; }
+  .ba-floating-chat { right: 12px; bottom: 95px; height: min(440px, calc(100dvh - 120px)); }
+  .ba-player-card { padding: 18px; }
+  .ba-player-card__identity { gap: 13px; }
+  .ba-player-card__identity > .ba-player-avatar { width: 58px; height: 58px; border-radius: 13px; font-size: 21px; }
+  .ba-player-card__identity h3 { font-size: 21px; }
+  .ba-player-card__stats > div { padding: 11px; }
+  .ba-player-card__stats dt { gap: 5px; font-size: 9px; }
+  .ba-player-card__achievements li { gap: 6px; padding: 9px; font-size: 9px; }
+}
+
+@media (max-height: 560px) {
+  .ba-match-strip { display: none; }
+  .ba-chat-launcher { right: 16px; bottom: 120px; padding: 8px 11px; }
+  .ba-chat-launcher small { display: none; }
+  .ba-floating-chat { right: 16px; bottom: 32px; height: calc(100dvh - 52px); }
+  .ba-floating-chat__header { min-height: 40px; padding-top: 5px; padding-bottom: 5px; }
+  .ba-chat-rival { min-height: 45px; padding-top: 6px; padding-bottom: 6px; }
+  .ba-chat-replies { padding-top: 4px; padding-bottom: 6px; }
+  .ba-floating-chat .ba-chat-form { padding-top: 7px; }
+}

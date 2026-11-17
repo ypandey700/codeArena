@@ -6,6 +6,7 @@ import {
   Minimize2, Search, Swords, UserRound, X,
 } from "lucide-react";
 import "./MatchmakingQueue.css";
+import "./MatchFound.css";
 
 let matchmakingAudio = null;
 
@@ -155,7 +156,7 @@ export function QueueOverlay({ onMinimize, onClose }) {
   );
 }
 
-function PlayerCard({ user, rival = false, opponent = null }) {
+function PlayerCard({ user, rival = false, opponent = null, accepted = false }) {
   const name = rival ? (opponent?.username || "Opponent") : (user?.username || "You");
   const wins = Number(user?.stats?.wins || 0);
   const losses = Number(user?.stats?.losses || 0);
@@ -167,47 +168,23 @@ function PlayerCard({ user, rival = false, opponent = null }) {
   const winrate = rival ? (opponent?.winRate || opponent?.winrate || "--") : (wins + losses ? `${((wins / (wins + losses)) * 100).toFixed(1)}%` : "--");
   const streak = rival ? (opponent?.streak ?? "--") : (user?.stats?.streak ?? "--");
   const avatar = rival ? opponent?.avatar : user?.avatar;
+  const [failedAvatar, setFailedAvatar] = useState(null);
 
   return (
-    <article className={`overflow-hidden rounded-lg border border-white/[.08] border-t-2 bg-[#191c1d] ${rival ? "border-t-[#c54c60]" : "border-t-[#fddf49]"}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border text-lg font-semibold ${rival ? "border-[#c54c60]/30 bg-[#39222a] text-[#e692a0]" : "border-[#fddf49]/30 bg-[#36321c] text-[#fddf49]"}`}>
-            {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : name.slice(0, 2).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-[#f0f1f4]">{name}</h2>
-            <p className={`mt-1 text-xs ${rival ? "text-[#d896a1]" : "text-[#fddf49]"}`}>
-              {tier}
-              <span className="ml-2 text-[#9299a7]">{displayRating} RR</span>
-            </p>
-          </div>
+    <article className={`mf-player${rival ? " mf-player--opponent" : ""}${accepted ? " is-accepted" : ""}`}>
+      <div className="mf-player__heading">
+        <span>{rival ? "Opponent's corner" : "Your corner"}</span>
+        <span className="mf-player__badge">{accepted ? <><Check size={11} aria-hidden="true" />Accepted</> : rival ? "Rival" : "You"}</span>
+      </div>
+      <div className="mf-player__identity">
+        <div className="mf-player__avatar">
+          {avatar && failedAvatar !== avatar ? <img src={avatar} alt="" onError={() => setFailedAvatar(avatar)} /> : name.slice(0, 2).toUpperCase()}
         </div>
-        <span className={`rounded-full px-3 py-1.5 text-[10px] font-semibold ${rival ? "bg-[#234139] text-[#94cdb7]" : "bg-[#fddf49]/10 text-[#fddf49]"}`}>
-          {rival ? "MATCH READY" : "CONFIRMED"}
-        </span>
+        <h2 title={name}>{name}</h2>
+        <p className="mf-player__rank"><span>{tier}</span><strong>{displayRating} <small>RR</small></strong></p>
       </div>
-      <div className="mx-3 flex flex-wrap justify-between gap-2 rounded-md bg-[#222627] px-3 py-2.5 text-xs sm:mx-4">
-        <span className="text-[#d7d7d1]">Mode: 1v1 Ranked Duel</span>
-        <span className="text-[#9299a7]">Isolated Docker Sandbox</span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 p-5 sm:grid-cols-4 sm:p-6">
-        {[
-          ["WINRATE", winrate],
-          ["STREAK", String(streak)],
-          ["RATING", `${displayRating} RR`],
-          ["STATUS", "SYNCED"],
-        ].map(([label, value], index) => (
-          <div key={label} className="rounded-md bg-[#222627] p-2">
-            <p className="text-[10px] text-[#9299a7]">{label}</p>
-            <p className={`mt-2 text-sm font-semibold ${index === 3 ? "text-emerald-400" : "text-[#e5e7eb]"}`}>{value}</p>
-          </div>
-        ))}
-      </div>
-      <div className="flex flex-wrap justify-between gap-2 border-t border-white/5 px-3 py-3 text-[11px] text-[#9299a7] sm:px-4">
-        <span>{rival ? `Opponent: ${name}` : `${wins} wins / ${losses} losses`}</span>
-        <span>Ranked duel matchmaking</span>
-      </div>
+      <dl className="mf-player__stats"><div><dt>Win rate</dt><dd>{winrate}</dd></div><div><dt>Win streak</dt><dd>{streak}</dd></div></dl>
+      <p className="mf-player__footer">{accepted ? <Check size={13} aria-hidden="true" /> : <Swords size={13} aria-hidden="true" />}{accepted ? "You're locked in" : rival ? "Your next challenge" : "Ready to make your move?"}</p>
     </article>
   );
 }
@@ -226,6 +203,21 @@ export function MatchFound({ onClose, onAccepted }) {
   const [seconds, setSeconds] = useState(calculateRemainingSeconds);
   const lastSoundRef = useRef(null);
   const acceptingRef = useRef(false);
+  const panelRef = useRef(null);
+  const acceptButtonRef = useRef(null);
+  const declineButtonRef = useRef(null);
+  const acceptWindowRef = useRef(Math.max(1, calculateRemainingSeconds()));
+
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, []);
 
   useEffect(() => {
     setSeconds(calculateRemainingSeconds());
@@ -254,19 +246,43 @@ export function MatchFound({ onClose, onAccepted }) {
   };
 
   const handleDecline = () => {
+    if (hasAccepted || seconds === 0) return;
     declineMatch();
     onClose?.();
   };
 
   useEffect(() => {
     const keydown = (event) => {
-      if (event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(event.target.tagName)) return;
+      if (event.defaultPrevented) return;
+      const dialog = event.target instanceof Element ? event.target.closest('dialog[open], [role="dialog"][aria-modal="true"]') : null;
+      if (dialog && dialog !== panelRef.current) return;
+      if (event.key === "Tab") {
+        const first = acceptButtonRef.current;
+        const last = declineButtonRef.current;
+        if (!first || first.disabled || !last || last.disabled) {
+          event.preventDefault();
+          panelRef.current?.focus({ preventScroll: true });
+        } else if (!panelRef.current?.contains(document.activeElement) || document.activeElement === panelRef.current) {
+          event.preventDefault();
+          (event.shiftKey ? last : first).focus();
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleDecline();
+        return;
+      }
+      if (event.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(event.target.tagName) || event.target.isContentEditable)) return;
       if (event.code === "Space") {
         event.preventDefault();
         handleAccept();
-      }
-      if (event.key === "Escape") {
-        handleDecline();
       }
     };
     window.addEventListener("keydown", keydown);
@@ -281,104 +297,42 @@ export function MatchFound({ onClose, onAccepted }) {
   const lossDelta = `${ratingPreview.loss}`;
 
   return (
-    <section className="match-found-screen arena-page-background relative isolate min-h-[calc(100vh-64px)] overflow-hidden text-[#e5e7eb]">
-      <div className="mx-auto flex max-w-[1080px] flex-col gap-4 px-4 py-4 sm:px-4 sm:py-5">
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/[.06] bg-[#0c0e10] p-4">
-          <div className="flex items-center gap-4">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#fddf49] text-[#24200b]">
-              <Swords size={23} />
-            </span>
-            <div>
-              <h1 className="text-sm font-semibold sm:text-base">MATCH FOUND // 1V1 RANKED DUEL</h1>
-              <p className="mt-1.5 text-xs text-[#9299a7]">
-                Live Matchmaking <span className="mx-2">/</span> Competitive Ranked <span className="mx-2">/</span>
-                <span className="text-[#fddf49]">Server Synced</span>
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => { void playTone(880, 0.3, 0.16); }}
-              className="rounded-md border border-white/10 px-2 py-1.5 text-[10px] text-[#fddf49] hover:bg-white/5"
-            >
-              Sound test
-            </button>
-            <div className="text-right">
-              <p className="text-xs font-semibold text-white">
-                {hasAccepted
-                  ? "WAITING FOR OPPONENT"
-                  : seconds === 0
-                  ? "MATCH EXPIRED"
-                  : "CONFIRM YOUR DUEL"}
-              </p>
-              <p className={`mt-1 text-[11px] ${seconds === 0 ? "text-[#dc8895]" : "text-[#9299a7]"}`}>
-                {hasAccepted
-                  ? "Locked in — awaiting opponent confirmation"
-                  : seconds === 0
-                  ? "Returning to queue..."
-                  : `Accept within ${seconds}s`}
-              </p>
-            </div>
-            <span className={`flex h-9 w-9 items-center justify-center rounded-full border-2 font-mono text-sm ${hasAccepted ? "border-emerald-400 text-emerald-400 animate-pulse" : "border-[#fddf49]/60 text-[#fddf49]"}`}>
-              {seconds}
-            </span>
-          </div>
+    <section ref={panelRef} className={`match-found-screen arena-page-background${hasAccepted ? " is-accepted" : ""}${seconds <= 5 && !hasAccepted ? " is-urgent" : ""}`} role="dialog" aria-modal="true" aria-labelledby="match-found-heading" aria-describedby="match-found-description" tabIndex={-1}>
+      <div className="mf-wrap">
+        <header className="mf-header">
+          <div className="mf-header__label"><Swords size={18} aria-hidden="true" /><span>Live matchmaking</span><span className="mf-mode">Ranked 1v1</span></div>
+          <span className="mf-found"><Check size={12} aria-hidden="true" />Opponent found</span>
         </header>
 
-        <div className="grid items-center gap-3 py-2 lg:grid-cols-[1fr_110px_1fr] lg:py-3">
-          <PlayerCard user={user} />
-          <div className="flex flex-col items-center gap-3 py-3 text-center">
-            <div className="flex h-14 w-14 rotate-45 items-center justify-center rounded-lg border border-[#fddf49]/20 bg-[#282a25]">
-              <b className="-rotate-45 text-xl italic text-[#fddf49]">VS</b>
+        <div className="mf-intro">
+          <div><p className="mf-eyebrow">Your next challenge is here</p><h1 id="match-found-heading">Match found.<br /><em>Make your move.</em></h1><p id="match-found-description">Accept your duel. The arena opens when you both lock in.</p></div>
+          <div className="mf-countdown">
+            <div className="mf-countdown__ring" role="timer" aria-label={`${seconds} seconds remaining to accept`}>
+              <svg viewBox="0 0 80 80" aria-hidden="true"><circle className="mf-countdown__track" cx="40" cy="40" r="34" /><circle className="mf-countdown__progress" cx="40" cy="40" r="34" pathLength="100" strokeDasharray={`${Math.min(1, seconds / acceptWindowRef.current) * 100} 100`} /></svg>
+              {hasAccepted ? <Check size={26} aria-hidden="true" /> : <span>{seconds}<small>seconds</small></span>}
             </div>
-            <div className="mt-2 text-xs leading-6">
-              <p className="text-[#fddf49] font-semibold">WIN: {winDelta} RR</p>
-              <p className="text-[#df7787] font-semibold">LOSS: {lossDelta} RR</p>
-            </div>
-            <div className="text-xs">
-              <p className="text-[#9299a7] uppercase tracking-wider text-[10px]">TARGET PROBLEM</p>
-              <p className="mt-1 font-semibold text-white">{problem?.title || "Problem Loading..."}</p>
-              <span className="mt-1 inline-block rounded bg-[#213a30] px-2 py-0.5 text-[10px] text-[#94cdb7] uppercase font-semibold">
-                {problem?.difficulty || "MEDIUM"} / {problem?.category || "ALGORITHMS"}
-              </span>
-            </div>
+            <div className="mf-countdown__copy" role="status"><strong>{hasAccepted ? "You're locked in" : seconds === 0 ? "Time's up" : "Your move"}</strong><p>{hasAccepted ? "Waiting for your opponent…" : seconds === 0 ? "The acceptance window has closed." : "Accept before the timer runs out."}</p></div>
           </div>
+        </div>
+
+        <div className="mf-matchup">
+          <PlayerCard user={user} accepted={hasAccepted} />
+          <div className="mf-versus" aria-label="versus"><span><Swords size={24} aria-hidden="true" /></span><b>VS</b><i /></div>
           <PlayerCard rival opponent={opponent} />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <button
-            onClick={handleAccept}
-            disabled={hasAccepted || seconds === 0}
-            className={`flex min-h-10 items-center justify-center gap-3 rounded-lg px-4 py-2.5 text-xs font-semibold shadow-[0_0_24px_#fddf491a] transition-all ${
-              hasAccepted
-                ? "bg-[#234139] text-[#94cdb7] cursor-not-allowed"
-                : seconds === 0
-                ? "bg-white/10 text-muted cursor-not-allowed"
-                : "bg-[#fddf49] text-[#24200b] hover:bg-[#ffe76e]"
-            }`}
-          >
-            <Swords size={18} />
-            {hasAccepted
-              ? "LOCKED IN // WAITING FOR OPPONENT..."
-              : seconds === 0
-              ? "MATCH EXPIRED"
-              : "LOCK IN DUEL (SPACEBAR)"}
-          </button>
-          <button
-            onClick={handleDecline}
-            disabled={hasAccepted}
-            className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#9e4950]/25 bg-[#281a1e] px-5 py-2.5 text-xs font-semibold text-[#e4a1aa] hover:bg-[#341d22] transition-colors"
-          >
-            <X size={16} />
-            DECLINE MATCH (ESC)
-          </button>
+        <div className="mf-brief" aria-label="Duel details">
+          <div className="mf-problem"><span className="mf-problem__icon"><Code2 size={19} aria-hidden="true" /></span><div><small>Your challenge</small><strong>{problem?.title || "Preparing your challenge"}</strong></div>{problem?.difficulty && <span className={`mf-difficulty mf-difficulty--${problem.difficulty}`}>{problem.difficulty}</span>}</div>
+          <dl className="mf-stakes"><div><dt>On a win</dt><dd>{winDelta} <small>RR</small></dd></div><div><dt>On a loss</dt><dd>{lossDelta} <small>RR</small></dd></div></dl>
         </div>
 
-        <p className="text-center text-[10px] text-[#737c8c]">
-          Competitive Ranked Duel. Declining or allowing timer to expire triggers a queue cooldown.
-        </p>
+        <footer className="mf-footer">
+          <div className="mf-actions">
+            <button ref={acceptButtonRef} type="button" className="mf-accept" onClick={handleAccept} disabled={hasAccepted || seconds === 0} aria-keyshortcuts="Space">{hasAccepted ? <LoaderCircle size={17} className="mf-spinner" aria-hidden="true" /> : <Swords size={17} aria-hidden="true" />}{hasAccepted ? "Waiting for opponent" : seconds === 0 ? "Match expired" : "Accept duel"}{!hasAccepted && seconds > 0 && <kbd>Space</kbd>}</button>
+            <button ref={declineButtonRef} type="button" className="mf-decline" onClick={handleDecline} disabled={hasAccepted || seconds === 0} aria-keyshortcuts="Escape"><X size={15} aria-hidden="true" />Decline<kbd>Esc</kbd></button>
+          </div>
+          <p>Declining or missing this duel starts a short queue cooldown.</p>
+        </footer>
       </div>
     </section>
   );

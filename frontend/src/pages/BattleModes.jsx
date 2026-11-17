@@ -1,11 +1,13 @@
 import { useAuth } from "../context/AuthContext";
 import { useRef } from "react";
 import { useBattle } from "../context/BattleContext";
+import { useNavigate } from "react-router-dom";
 
 export default function BattleModes({ onQuickDuel }) {
   const { user } = useAuth();
   const frameRef = useRef(null);
   const { joinQueue } = useBattle();
+  const navigate = useNavigate();
 
   const handleQueue = () => {
     joinQueue("ranked_1v1");
@@ -38,7 +40,10 @@ export default function BattleModes({ onQuickDuel }) {
       const control = event.target.closest("button, a");
       if (!control) return;
 
-      if (control.id === "queue-ranked-duel") {
+      if (control.id === "open-skiller") {
+        event.preventDefault();
+        navigate("/skiller");
+      } else if (control.id === "queue-ranked-duel") {
         event.preventDefault();
         handleQueue();
       } else {

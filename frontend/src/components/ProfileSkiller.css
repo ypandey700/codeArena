@@ -1,0 +1,128 @@
+.ps-journey { margin-bottom: 20px; padding: 26px; border: 1px solid #ffffff14; border-radius: 20px; background: #1b1e22; }
+.ps-journey, .ps-journey * { box-sizing: border-box; }
+.ps-journey button:disabled { opacity: .45; cursor: default; }
+.ps-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.ps-heading-title { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.ps-sprout { display: grid; flex-shrink: 0; place-items: center; width: 45px; height: 45px; border: 1px solid #b4caa233; border-radius: 14px; background: #b4caa20b; color: #b4caa2; transform: rotate(-6deg); }
+.ps-heading h2 { color: #e6e6e1; font-size: 21px; font-weight: 550; line-height: 1.3; letter-spacing: -.04em; }
+.ps-heading-title p { margin-top: 5px; color: #969da7; font-size: 12px; line-height: 1.6; }
+.ps-heading > .pp-button { flex-shrink: 0; }
+.ps-overview { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr); align-items: center; gap: 25px; padding: 25px 0; }
+.ps-next-focus { display: flex; align-items: flex-start; gap: 11px; }
+.ps-focus-icon { display: grid; flex-shrink: 0; place-items: center; width: 36px; height: 36px; margin-top: 3px; border-radius: 12px; background: #c6b5e00c; color: #bbaecc; }
+.ps-next-focus > div > span { color: #9299a5; font-size: 11px; }
+.ps-next-focus strong { display: block; margin-top: 4px; color: #d7cedf; font-size: 16px; font-weight: 500; line-height: 1.4; }
+.ps-next-focus p { max-width: 32ch; margin-top: 5px; color: #9299a5; font-size: 11px; line-height: 1.7; }
+.ps-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 13px; padding-left: 22px; border-left: 1px solid #ffffff10; }
+.ps-stats > div { min-width: 0; }
+.ps-stats dd { color: #e1d29e; font-size: 27px; font-weight: 550; letter-spacing: -.04em; }
+.ps-stats > div:nth-child(2) dd { color: #d1a899; }
+.ps-stats > div:nth-child(3) dd { color: #b1c7a0; }
+.ps-stats dt { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 7px; color: #9ba1aa; font-size: 10px; line-height: 1.5; }
+.ps-stats dt svg { flex-shrink: 0; }
+.ps-details { border-top: 1px solid #ffffff10; }
+.ps-disclosure { border-bottom: 1px solid #ffffff0d; }
+.ps-disclosure > summary { display: flex; align-items: center; gap: 12px; min-height: 57px; color: #c8cbd0; list-style: none; cursor: pointer; }
+.ps-disclosure > summary::-webkit-details-marker { display: none; }
+.ps-disclosure > summary > span { display: inline-flex; flex: 1; align-items: center; gap: 10px; min-width: 0; font-size: 13px; font-weight: 450; }
+.ps-disclosure > summary > span svg { flex-shrink: 0; color: #9098a5; }
+.ps-disclosure > summary > small { color: #959ba6; font-size: 11px; }
+.ps-disclosure > summary > svg { flex-shrink: 0; color: #8d95a1; transition: transform 160ms; }
+.ps-disclosure[open] > summary > svg { transform: rotate(180deg); }
+.ps-disclosure > summary:hover { color: #e5d79d; }
+.ps-detail-body { padding: 2px 0 18px; }
+.ps-topics { border-top: 1px solid #ffffff09; }
+.ps-topic { display: flex; align-items: center; gap: 20px; min-width: 0; padding: 15px 0; border-bottom: 1px solid #ffffff09; }
+.ps-topic-label { flex: 1; min-width: 0; }
+.ps-topic h3 { color: #d1d3d7; font-size: 12px; font-weight: 500; line-height: 1.6; }
+.ps-topic-label p { margin-top: 4px; color: #969ba7; font-size: 10px; line-height: 1.6; }
+.ps-topic.is-needs-practice .ps-topic-label p { color: #cda596; }
+.ps-topic.is-strong .ps-topic-label p { color: #aec49e; }
+.ps-topic-label p > span { color: #838c99; }
+.ps-topic-strength { display: flex; flex-shrink: 0; align-items: center; gap: 12px; width: 42%; max-width: 255px; }
+.ps-topic-meter { flex: 1; height: 5px; overflow: hidden; border-radius: 4px; background: #ffffff0b; }
+.ps-topic-meter > span { display: block; height: 100%; border-radius: inherit; background: #c6b8d9; }
+.ps-topic.is-needs-practice .ps-topic-meter > span { background: #c99e8d; }
+.ps-topic.is-strong .ps-topic-meter > span { background: #abc397; }
+.ps-topic-strength > strong { flex-shrink: 0; min-width: 48px; color: #d7d0b0; font-size: 13px; font-weight: 500; text-align: right; }
+.ps-topic-strength small { margin-left: 2px; color: #7e8797; font-size: 9px; font-weight: 400; }
+.ps-unassessed { width: 100%; color: #828b9a; font-size: 10px; text-align: right; }
+.ps-topic-practice { display: grid; flex-shrink: 0; place-items: center; width: 27px; height: 27px; border: 1px solid #ffffff12; border-radius: 7px; color: #d1c48e !important; }
+.ps-topic-practice:hover { background: #e6d5910b; }
+.ps-footnote { margin-top: 14px !important; color: #8e96a3; font-size: 11px; line-height: 1.8; }
+.ps-state { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; min-height: 120px; padding: 25px 0; color: #a0a6b0; font-size: 12px; line-height: 1.8; text-align: center; }
+.ps-state > p { flex-basis: 100%; }
+.ps-error { display: flex; align-items: center; gap: 6px; color: #ddb0a1 !important; font-size: 12px; line-height: 1.7; }
+.ps-detail-note { margin-bottom: 11px !important; color: #b1a5c1; font-size: 11px; line-height: 1.8; }
+.ps-history-caption { margin-bottom: 5px !important; color: #969da8; font-size: 11px; line-height: 1.8; }
+.ps-history { margin: 8px 0 0; padding: 0; list-style: none; }
+.ps-history li { display: flex; align-items: center; gap: 12px; padding: 15px 0; border-bottom: 1px solid #ffffff09; }
+.ps-history-mark { display: grid; flex-shrink: 0; place-items: center; width: 26px; height: 26px; border: 1px solid #c9b3902a; border-radius: 50%; color: #b5a88e; }
+.ps-history-mark > span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.ps-history-mark.is-complete { border-color: #a7bd9835; color: #a7bd98; }
+.ps-history li > div { flex: 1; min-width: 0; }
+.ps-history li a { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; color: #d2d4da; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.ps-history li a svg { flex-shrink: 0; }
+.ps-history li p { margin-top: 5px; color: #8d96a5; font-size: 10px; line-height: 1.7; }
+.ps-history-detail { display: flex; flex-shrink: 0; flex-direction: column; gap: 7px; text-align: right; }
+.ps-history-detail strong { color: #beb294; font-size: 10px; font-weight: 450; }
+.ps-history-detail time { color: #8c95a4; font-size: 10px; }
+.ps-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 17px; }
+.ps-pagination > span { color: #969eaa; font-size: 11px; }
+.ps-provider-picker { display: flex; flex-wrap: wrap; gap: 7px; margin: 4px 0 20px; }
+.ps-provider-picker button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 11px; border: 1px solid #ffffff14; border-radius: 7px; background: none; color: #a6adb8; font-size: 11px; }
+.ps-provider-picker button[aria-pressed=true] { border-color: #bca9d34d; background: #bca9d310; color: #d4c6e4; }
+.ps-provider-picker button > svg { color: #a8bf99; }
+.ps-link-card { max-width: 580px; padding-bottom: 4px; }
+.ps-link-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ps-link-heading h3 { color: #d7d7db; font-size: 14px; font-weight: 500; }
+.ps-link-status { color: #9ba2ae; font-size: 10px; }
+.ps-link-status.is-imported { color: #adc69b; }
+.ps-link-card > p { margin-top: 8px; color: #959daa; font-size: 12px; line-height: 1.8; }
+.ps-link-card label { display: block; margin: 17px 0 8px; color: #c0c4cc; font-size: 11px; }
+.ps-link-card input { width: 100%; min-height: 42px; padding: 9px 12px; border: 1px solid #ffffff20; border-radius: 8px; background: #15181c; color: #d3d6de; font-size: 12px; }
+.ps-link-card input::placeholder { color: #747f8e; font-size: 11px; }
+.ps-link-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-top: 12px; }
+.ps-link-actions .pp-button { min-height: 34px; font-size: 11px; }
+.ps-link-actions .pp-text-button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font-size: 11px; }
+.ps-link-card .ps-link-message { color: #909aa9; font-size: 11px; }
+.ps-connect-nudge { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 7px; width: 100%; margin-top: 18px; padding: 0; border: 0; background: none; color: #959ba6; font-size: 11px; }
+.ps-connect-nudge > span { display: inline-flex; align-items: center; gap: 5px; color: #d8ca94; }
+.ps-connect-nudge:hover > span { color: #f0df9f; }
+@media (max-width:620px) {
+  .ps-journey { padding: 21px; }
+  .ps-heading { flex-wrap: wrap; gap: 17px; }
+  .ps-heading-title { gap: 10px; }
+  .ps-sprout { width: 39px; height: 39px; border-radius: 12px; }
+  .ps-heading h2 { font-size: 19px; }
+  .ps-heading-title p { font-size: 11px; }
+  .ps-heading > .pp-button { width: 100%; }
+  .ps-overview { grid-template-columns: minmax(0,1fr); gap: 21px; padding-top: 22px; padding-bottom: 23px; }
+  .ps-next-focus strong { font-size: 15px; }
+  .ps-next-focus p { max-width: none; font-size: 11px; }
+  .ps-stats { gap: 12px; padding: 0; border: 0; }
+  .ps-stats > div { padding-left: 13px; border-left: 1px solid #ffffff0d; }
+  .ps-stats > div:first-child { padding: 0; border: 0; }
+  .ps-stats dd { font-size: 25px; }
+  .ps-stats dt { gap: 4px; font-size: 10px; }
+  .ps-stats dt svg { display: none; }
+  .ps-disclosure > summary { gap: 8px; min-height: 56px; }
+  .ps-disclosure > summary > span { gap: 7px; font-size: 12px; }
+  .ps-disclosure > summary > small { font-size: 10px; }
+  .ps-topic { gap: 10px; padding-block: 14px; }
+  .ps-topic h3 { font-size: 11px; }
+  .ps-topic-label p { font-size: 10px; }
+  .ps-topic-label p > span { display: none; }
+  .ps-topic-strength { width: 38%; gap: 8px; }
+  .ps-topic-strength > strong { min-width: 38px; font-size: 12px; }
+  .ps-topic-strength small { font-size: 8px; }
+  .ps-topic-practice { width: 23px; height: 25px; }
+  .ps-provider-picker { gap: 6px; }
+  .ps-provider-picker button { gap: 4px; padding: 8px; font-size: 10px; }
+  .ps-history li { gap: 9px; }
+  .ps-history li a { font-size: 11px; }
+  .ps-history li p { font-size: 9px; }
+  .ps-history-detail time { max-width: 65px; font-size: 9px; line-height: 1.7; }
+  .ps-pagination > span { order: 3; width: 100%; text-align: center; }
+  .ps-connect-nudge { font-size: 10px; }
+}
