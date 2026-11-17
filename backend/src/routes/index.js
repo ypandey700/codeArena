@@ -6,6 +6,7 @@ const problemRoutes = require('./problemRoutes');
 const submissionRoutes = require('./submissionRoutes');
 const battleRoutes = require('./battleRoutes');
 const arenaRoutes = require('./arenaRoutes');
+const skillerRoutes = require('../skiller/routes');
 
 router.get('/', (req, res) => {
   res.json({
@@ -20,5 +21,6 @@ router.use('/problems', problemRoutes);
 router.use('/submissions', submissionRoutes);
 router.use('/battles', battleRoutes);
 router.use('/arena', arenaRoutes);
+router.use('/skiller', skillerRoutes);
 
 module.exports = router;

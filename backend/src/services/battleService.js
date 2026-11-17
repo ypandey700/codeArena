@@ -12,6 +12,7 @@ const interviewService = require('./interviewService');
 const { getTier } = require('../utils/tier');
 
 const QUEUE_KEY = 'matchmaking:queue:ranked_1v1';
+const NO_PROBLEMS_MESSAGE = 'No coding problems are available yet. Please try again later.';
 const MATCH_LUA = `
 if redis.call('ZSCORE', KEYS[1], ARGV[1]) and redis.call('ZSCORE', KEYS[1], ARGV[2]) then
   redis.call('ZREM', KEYS[1], ARGV[1], ARGV[2])
@@ -37,6 +38,15 @@ const getReconnectGraceSeconds = () => parseInt(process.env.RECONNECT_GRACE_SECO
 const getAcceptWindowSeconds = () => parseInt(process.env.ACCEPT_WINDOW_SECONDS, 10) || 30;
 
 const getUserId = (u) => (u && u._id ? String(u._id) : String(u));
+
+const forfeitRatingLoss = (battle, userId) => {
+  const me = battle.players.find((player) => getUserId(player.user) === String(userId));
+  const opponent = battle.players.find((player) => getUserId(player.user) !== String(userId));
+  if (!me || !opponent) return null;
+  const expected = 1 / (1 + Math.pow(10, (opponent.ratingBefore - me.ratingBefore) / 400));
+  const delta = Math.round(32 * -expected);
+  return me.ratingBefore - Math.max(100, me.ratingBefore + delta);
+};
 
 const toTimeMs = (val) => {
   if (!val) return null;
@@ -133,6 +143,7 @@ const formatBattleState = async (battle, userId) => {
   const base = {
     battleId: String(battle._id),
     status: battle.status,
+    forfeitRatingLoss: forfeitRatingLoss(battle, userId),
     serverNow: Date.now(),
     myPhase: me?.phase || 'coding',
     opponentPhase: opp?.phase || 'coding',
@@ -273,6 +284,10 @@ const enqueuePlayer = async (userId, mode = 'ranked_1v1') => {
     return { success: false, message: 'User not found' };
   }
 
+  if (!await Problem.exists({})) {
+    return { success: false, message: NO_PROBLEMS_MESSAGE };
+  }
+
   await redis.zadd(QUEUE_KEY, user.rating || 1200, String(userId));
   await redis.hset('matchmaking:times', String(userId), Date.now());
   return { success: true, message: 'Joined queue' };
@@ -289,7 +304,9 @@ const createMatchedBattle = async (userIdA, userIdB) => {
     User.findById(userIdA),
     User.findById(userIdB),
   ]);
-  if (!userA || !userB) return;
+  if (!userA || !userB) {
+    return { success: false, message: 'A player is no longer available. Please join the queue again.' };
+  }
 
   const [solvedA, solvedB] = await Promise.all([
     Submission.distinct('problem', { user: userA._id, status: 'accepted' }),
@@ -310,9 +327,10 @@ const createMatchedBattle = async (userIdA, userIdB) => {
   if (!problem) {
     problem = await Problem.findOne();
   }
-  if (!problem) return;
+  if (!problem) return { success: false, message: NO_PROBLEMS_MESSAGE };
 
   const problemDoc = await Problem.findById(problem._id).select('+hiddenTestCases');
+  if (!problemDoc) return { success: false, message: NO_PROBLEMS_MESSAGE };
   const totalTests = (problemDoc?.sampleTestCases?.length || 0) + (problemDoc?.hiddenTestCases?.length || 0);
 
   const acceptWindow = getAcceptWindowSeconds();
@@ -384,6 +402,7 @@ const createMatchedBattle = async (userIdA, userIdB) => {
     problem: probPreview,
     ratingPreview: { win: winB, loss: lossB },
   });
+  return { success: true };
 };
 
 const onAcceptTimeout = async (battleId) => {
@@ -524,6 +543,7 @@ const startBattle = async (battleId) => {
 
   ioInstance?.to(`user:${p0._id}`).emit('battle_start', {
     battleId: battle._id,
+    forfeitRatingLoss: forfeitRatingLoss(battle, p0._id),
     serverNow: Date.now(),
     startedAt,
     endsAt,
@@ -539,6 +559,7 @@ const startBattle = async (battleId) => {
 
   ioInstance?.to(`user:${p1._id}`).emit('battle_start', {
     battleId: battle._id,
+    forfeitRatingLoss: forfeitRatingLoss(battle, p1._id),
     serverNow: Date.now(),
     startedAt,
     endsAt,
@@ -806,9 +827,11 @@ const finishBattle = async (battleId, winnerId, reason = 'time', recover = false
 
   await battle.save();
   const session = await mongoose.startSession();
+  let completed = false;
   try {
     const savedRecords = battle.players.map((player) => player.record);
-    await session.withTransaction(async () => {
+    const applyResults = async (transaction = null) => {
+      const options = transaction ? { session: transaction } : {};
       battle.players.forEach((player, index) => { player.record = savedRecords[index]; });
       for (const [player, score, rating, xp] of [[p0, s0, newR0, xp0], [p1, s1, newR1, xp1]]) {
         const battleKey = String(battle._id);
@@ -822,13 +845,23 @@ const finishBattle = async (battleId, winnerId, reason = 'time', recover = false
           'stats.streak': score === 1 ? add('stats.streak', 1) : score === 0 ? 0 : { $ifNull: ['$stats.streak', 0] },
           'stats.peakRating': { $max: [{ $ifNull: ['$stats.peakRating', 1200] }, rating] },
           appliedBattleResults: { $concatArrays: [{ $ifNull: ['$appliedBattleResults', []] }, [battleKey]] },
-        } }], { session });
+        } }], options);
       }
       for (const player of battle.players) {
-        if (!player.record) player.record = await playerRecord(await User.findById(getUserId(player.user)).session(session), session);
+        if (!player.record) player.record = await playerRecord(await User.findById(getUserId(player.user)).session(transaction), transaction);
       }
-      await Battle.updateOne({ _id: battle._id, status: 'finalizing' }, { $set: { status: 'finished', 'players.0.record': p0.record, 'players.1.record': p1.record } }, { session });
-    });
+      // The result becomes visible only after both idempotent player updates succeed.
+      const result = await Battle.updateOne({ _id: battle._id, status: 'finalizing' }, { $set: { status: 'finished', 'players.0.record': p0.record, 'players.1.record': p1.record } }, options);
+      return result.modifiedCount === 1;
+    };
+    try {
+      await session.withTransaction(async () => { completed = await applyResults(session); });
+    } catch (error) {
+      if (error.code !== 20 || !/Transaction numbers are only allowed on a replica set member or mongos/i.test(error.message)) throw error;
+      // Standalone MongoDB still atomically guards each user's rating/XP update
+      // with appliedBattleResults, so an interrupted save can safely be retried.
+      completed = await applyResults();
+    }
   } catch (error) {
     console.error(`Battle ${battleId} finalization failed: ${error.message}`);
     hardTimers[battleId] = setTimeout(() => {
@@ -838,6 +871,7 @@ const finishBattle = async (battleId, winnerId, reason = 'time', recover = false
   } finally {
     await session.endSession();
   }
+  if (!completed) return;
   battle.status = 'finished';
   ioInstance?.to(`user:${p0Id}`).emit('battle_end', await formatBattleEndShape(battle, p0Id));
   ioInstance?.to(`user:${p1Id}`).emit('battle_end', await formatBattleEndShape(battle, p1Id));
@@ -1041,13 +1075,25 @@ const runMatcherTick = async () => {
           if (removed === 1) {
             matchedSet.add(uA);
             matchedSet.add(uB);
-            await createMatchedBattle(uA, uB);
+            let result;
+            try {
+              result = await createMatchedBattle(uA, uB);
+            } catch (err) {
+              console.error('Match creation failed:', err);
+              result = { success: false, message: 'Could not create your match. Please join the queue again.' };
+            }
+            if (!result.success) {
+              for (const userId of [uA, uB]) {
+                ioInstance?.to(`user:${userId}`).emit('queue_error', { message: result.message });
+              }
+            }
             break;
           }
         }
       }
     }
   } catch (err) {
+    console.error('Matchmaking tick failed:', err);
   }
 };
 
