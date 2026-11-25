@@ -32,7 +32,7 @@ const restoreLayout = () => {
 
 function restoreEditor(battle, userId) {
   let saved;
-  try { saved = JSON.parse(sessionStorage.getItem(`battle-editor:${battle?.battleId}:${userId}`)); } catch {}
+  try { saved = JSON.parse(sessionStorage.getItem(`battle-editor:v2:${battle?.battleId}:${userId}`)); } catch {}
   const language = LANGUAGES.some((item) => item.key === saved?.language) ? saved.language : "python";
   const codes = Object.fromEntries(LANGUAGES.map(({ key }) => [key, typeof saved?.codes?.[key] === "string" ? saved.codes[key] : starterFor(battle?.problem, key)]));
   return { language, codes, restored: !!saved };
@@ -141,7 +141,7 @@ export default function BattleArena({ onExit, onQueueNext }) {
   function persistEditor() {
     const state = liveRef.current;
     if (!state.battle?.battleId) return;
-    try { sessionStorage.setItem(`battle-editor:${state.battle.battleId}:${state.userId}`, JSON.stringify({ language: languageRef.current, codes: codesRef.current })); } catch {}
+    try { sessionStorage.setItem(`battle-editor:v2:${state.battle.battleId}:${state.userId}`, JSON.stringify({ language: languageRef.current, codes: codesRef.current })); } catch {}
   }
 
   function scheduleDraft(force = false) {

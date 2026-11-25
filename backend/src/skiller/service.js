@@ -5,6 +5,7 @@ const { TOPICS, DIAGNOSTIC, PROBLEMS } = require('./curriculum');
 const { topicMap, recommend } = require('./mastery');
 const { parseProfile, importPublicTopics } = require('./profiles');
 const { runSubmission } = require('../services/codeRunnerService');
+const { sanitizeStarterCode, isLegacySolved } = require('../services/starterCode');
 const LEASE_MS = 120000;
 const error = (status, message) => Object.assign(new Error(message), { status });
 let bankReady;
@@ -36,14 +37,14 @@ async function history(user, requestedPage = 1, requestedLimit = 8) {
 }
 const plain = (document) => document?.toObject ? document.toObject({ flattenMaps: true }) : document;
 function publicProblem(problem) {
-  const item = plain(problem);
+  const item = sanitizeStarterCode(plain(problem));
   return Object.fromEntries(['_id', 'slug', 'title', 'topic', 'difficulty', 'description', 'inputFormat', 'outputFormat', 'constraints', 'sampleTestCases', 'starterCode', 'timeLimitMs', 'memoryLimitMb'].map((key) => [key, item[key]]));
 }
 function publicAttempt(document) {
   const attempt = plain(document), problem = attempt.problem;
   return {
     id: String(attempt._id), problem: publicProblem(problem), topic: attempt.topic, difficulty: attempt.difficulty, kind: attempt.kind, reason: attempt.reason,
-    state: attempt.state, active: attempt.active, language: attempt.language, code: attempt.code || '', draftRevision: attempt.draftRevision,
+    state: attempt.state, active: attempt.active, language: attempt.language, code: isLegacySolved(attempt.code, attempt.language) ? sanitizeStarterCode(problem).starterCode?.[attempt.language] || '' : attempt.code || '', draftRevision: attempt.draftRevision,
     runs: attempt.runs, submissions: attempt.submissions, hints: (attempt.hintsUsed || []).map((index) => problem.hints?.[index]).filter(Boolean), hintsAvailable: Math.max(0, (problem.hints?.length || 0) - (attempt.hintsUsed?.length || 0)),
     startedAt: attempt.startedAt, completedAt: attempt.completedAt, elapsedMs: attempt.elapsedMs, result: attempt.result || null, lastRun: attempt.lastRun || null,
     processing: !!attempt.processingAt && Date.now() - new Date(attempt.processingAt).getTime() < LEASE_MS,
@@ -117,7 +118,7 @@ async function nextAttempt(user, topic) {
   const recommendation = recommend(problems, topicMap(plain(profile), attempts), attempts, topic);
   if (!recommendation) throw error(503, 'No Skiller problems are available. Please try again later.');
   try {
-    const record = await SkillerAttempt.create({ user, problem: recommendation.problem._id, topic: recommendation.problem.topic, difficulty: recommendation.problem.difficulty, kind: recommendation.kind, reason: recommendation.reason, code: recommendation.problem.starterCode.python });
+    const record = await SkillerAttempt.create({ user, problem: recommendation.problem._id, topic: recommendation.problem.topic, difficulty: recommendation.problem.difficulty, kind: recommendation.kind, reason: recommendation.reason, code: sanitizeStarterCode(recommendation.problem).starterCode.python });
     await dashboard(user);
     return publicAttempt(await ownedAttempt(user, record._id));
   } catch (failure) {

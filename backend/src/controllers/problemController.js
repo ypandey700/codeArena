@@ -1,4 +1,5 @@
 const Problem = require('../models/Problem');
+const { sanitizeStarterCode } = require('../services/starterCode');
 
 const getProblems = async (req, res) => {
   try {
@@ -37,7 +38,7 @@ const getProblems = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        problems,
+        problems: problems.map((problem) => problem.starterCode ? sanitizeStarterCode(problem) : problem),
         total,
         page,
         limit,
@@ -60,7 +61,7 @@ const getProblemBySlug = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        problem,
+        problem: sanitizeStarterCode(problem),
       },
     });
   } catch (err) {

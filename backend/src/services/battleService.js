@@ -9,6 +9,8 @@ const { analyzeSolution } = require('./analysisService');
 const { computeResult, scoringInfo } = require('../config/scoring');
 const Interview = require('../models/Interview');
 const interviewService = require('./interviewService');
+const { sanitizeStarterCode, isNoSubmission, isLegacySolved } = require('./starterCode');
+const { heuristicGrade } = require('./interviewGrading');
 const { getTier } = require('../utils/tier');
 
 const QUEUE_KEY = 'matchmaking:queue:ranked_1v1';
@@ -57,7 +59,7 @@ const toTimeMs = (val) => {
 
 const cleanProblem = (problem) => {
   if (!problem) return null;
-  const p = problem.toObject ? problem.toObject() : { ...problem };
+  const p = sanitizeStarterCode(problem);
   delete p.hiddenTestCases;
   delete p.stressTest;
   return p;
@@ -239,7 +241,7 @@ const formatBattleEndShape = async (battle, userId) => {
     status: battle.status,
     scoring,
     headToHead: history,
-    ...(me && me.finalCode !== undefined ? { myCode: { language: me.language || '', code: me.finalCode || '' } } : {}),
+    ...(me && me.finalCode !== undefined ? { myCode: { language: me.language || '', code: isLegacySolved(me.finalCode, me.language) ? '' : me.finalCode || '' } } : {}),
     winner: battle.winner ? String(battle.winner) : null,
     reason: battle.reason || null,
     problem: battle.problem && typeof battle.problem === 'object' ? {
@@ -600,11 +602,21 @@ const armHardCap = (battle) => {
   hardTimers[battle._id] = setTimeout(() => closeAtHardCap(battle._id).catch(() => {}), Math.max(0, deadline - Date.now()));
 };
 
+const noSubmissionFields = () => ({
+  finalCode: '', resultSource: 'none', bestPassed: 0, solvedAt: null, runtimeMs: 0,
+  myTests: [], analysis: null, analysisCompletedAt: new Date(), evaluationReady: false,
+});
+const playerFields = (fields) => Object.fromEntries(Object.entries(fields).map(([key, value]) => [`players.$.${key}`, value]));
+
 const closeAtHardCap = async (battleId) => {
-  const battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode');
+  const battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode').populate('problem');
   if (!battle || !battle.players.every((player) => player.finishedAt)) return;
   for (const player of battle.players) {
-    await interviewService.ensureInterview(battleId, player);
+    if (isNoSubmission(battle.problem, player.language, player.finalCode) && (player.finalCode || !player.codingProcessedAt)) {
+      const values = playerFields({ ...noSubmissionFields(), codingProcessedAt: new Date(), finishing: false });
+      await Battle.updateOne({ _id: battleId, status: 'active', 'players.user': player.user }, { $set: values });
+    }
+    await interviewService.ensureInterview(battleId, player, battle.problem);
     if (!player.codingProcessedAt) await Battle.updateOne({ _id: battleId, status: 'active', players: { $elemMatch: { user: player.user, codingProcessedAt: null } } }, { $set: { 'players.$.codingProcessedAt': new Date(), 'players.$.analysisCompletedAt': new Date(), 'players.$.analysis': null, ...(!player.evaluationReady ? { 'players.$.bestPassed': 0, 'players.$.runtimeMs': 0, 'players.$.myTests': [], 'players.$.solvedAt': null } : {}) } });
   }
   await interviewService.forceClose(battleId);
@@ -618,10 +630,18 @@ const processPlayer = (battleId, userId) => {
     let battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode');
     let player = battle?.players.find((p) => getUserId(p.user) === String(userId));
     if (!player || player.phase === 'coding') return;
-    const interview = await interviewService.ensureInterview(battleId, player);
+    const problem = await Problem.findById(battle.problem).select('+hiddenTestCases');
+    const noSubmission = isNoSubmission(problem, player.language, player.finalCode);
+    if (noSubmission) {
+      const fields = noSubmissionFields();
+      if (player.finalCode || !player.codingProcessedAt || player.bestPassed || player.solvedAt) {
+        await Battle.updateOne({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: { $in: ['interview', 'done'] } } } }, { $set: playerFields(fields) });
+      }
+      Object.assign(player, fields);
+    }
+    const interview = await interviewService.ensureInterview(battleId, player, problem);
     const update = async (values) => Battle.updateOne({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: { $in: ['interview', 'done'] }, codingProcessedAt: null } } }, { $set: values });
     if (!player.codingProcessedAt) {
-      const problem = await Problem.findById(battle.problem).select('+hiddenTestCases');
       if (!player.evaluationReady) {
         const budget = new Date(interview.deadlineAt).getTime() + 20000 - Date.now();
         const evaluated = await bounded(evaluateCode(problem, player.language, player.finalCode), budget) || await evaluateCode(problem, '', '');
@@ -635,7 +655,7 @@ const processPlayer = (battleId, userId) => {
       const payload = { endsAt: battle.endsAt, serverNow: Date.now(), passedCount: player.bestPassed, totalCount: player.totalTests };
       ioInstance?.to(`user:${userId}`).emit('you_finished', payload);
       ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_finished', { ...payload, solveTimeMs: player.solvedAt ? new Date(player.solvedAt) - new Date(battle.startedAt) : null });
-      if (!player.analysisCompletedAt) {
+      if (!noSubmission && !player.analysisCompletedAt) {
         const budget = Math.min((Number(process.env.LLM_TIMEOUT_MS) || 20000) + 5000, new Date(interview.deadlineAt).getTime() + 20000 - Date.now());
         const analysis = await bounded(analyzeSolution({ problem, language: player.language, code: player.finalCode }), budget);
         await update({ 'players.$.analysis': analysis, 'players.$.analysisCompletedAt': new Date() });
@@ -650,20 +670,23 @@ const processPlayer = (battleId, userId) => {
 };
 
 const endCoding = async (battleId, userId, reason, evaluated = false) => {
-  const battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode');
+  const battle = await Battle.findOne({ _id: battleId, status: 'active' }).select('+players.finalCode').populate('problem');
   const player = battle?.players.find((p) => getUserId(p.user) === String(userId));
   if (!player || player.phase !== 'coding') return { success: false, message: 'Coding is locked' };
   const raw = evaluated ? null : await redis.get(`draft:${battleId}:${userId}`);
   const draft = raw ? JSON.parse(raw) : null;
   const source = draft && draft.at > (toTimeMs(player.codeUpdatedAt) || 0) ? draft : { code: player.finalCode || '', language: player.language };
+  const noSubmission = isNoSubmission(battle.problem, source.language, source.code);
   const finishedAt = reason === 'timeout' ? new Date(battle.endsAt) : new Date();
-  const updated = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: 'coding', ...(reason === 'locked' ? { finishing: { $ne: true } } : {}) } } }, { $set: { battleDurationMs: battle.battleDurationMs || new Date(battle.endsAt) - new Date(battle.startedAt), 'players.$.phase': 'interview', 'players.$.finishedAt': finishedAt, 'players.$.finishedBy': reason, 'players.$.finishing': false, 'players.$.finalCode': source.code, 'players.$.language': source.language, 'players.$.evaluationReady': evaluated, 'players.$.resultSource': source.code ? (evaluated ? 'submit' : 'auto_draft') : 'none' }, $min: { endsAt: new Date(Date.now() + (Number(process.env.AFTER_FIRST_FINISH_SECONDS) || 180) * 1000) } }, { new: true }).select('+players.finalCode');
+  const updated = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', players: { $elemMatch: { user: userId, phase: 'coding', ...(reason === 'locked' ? { finishing: { $ne: true } } : {}) } } }, { $set: { battleDurationMs: battle.battleDurationMs || new Date(battle.endsAt) - new Date(battle.startedAt), 'players.$.phase': 'interview', 'players.$.finishedAt': finishedAt, 'players.$.finishedBy': reason, 'players.$.finishing': false, 'players.$.finalCode': source.code, 'players.$.language': source.language, 'players.$.evaluationReady': evaluated, 'players.$.resultSource': source.code ? (evaluated ? 'submit' : 'auto_draft') : 'none', ...(noSubmission ? playerFields(noSubmissionFields()) : {}) }, $min: { endsAt: new Date(Date.now() + (Number(process.env.AFTER_FIRST_FINISH_SECONDS) || 180) * 1000) } }, { new: true }).select('+players.finalCode');
   if (!updated) return { success: false, message: 'Coding is locked' };
   const current = updated.players.find((p) => getUserId(p.user) === String(userId));
-  const interview = await interviewService.ensureInterview(battleId, current);
-  const opponent = updated.players.find((p) => getUserId(p.user) !== String(userId));
-  ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_phase', { phase: 'interview', total: interview.total });
-  ioInstance?.to(`user:${userId}`).emit('interview_thinking', {});
+  if (!noSubmission) {
+    const interview = await interviewService.ensureInterview(battleId, current, battle.problem);
+    const opponent = updated.players.find((p) => getUserId(p.user) !== String(userId));
+    ioInstance?.to(`user:${getUserId(opponent.user)}`).emit('opponent_phase', { phase: 'interview', total: interview.total });
+    ioInstance?.to(`user:${userId}`).emit('interview_thinking', {});
+  }
   const key = `${battleId}:${userId}`;
   clearTimeout(disconnectTimers[key]);
   delete disconnectTimers[key];
@@ -671,7 +694,7 @@ const endCoding = async (battleId, userId, reason, evaluated = false) => {
   else { clearTimeout(battleTimers[battleId]); delete battleTimers[battleId]; }
   armHardCap(updated);
   processPlayer(battleId, userId).catch(() => {});
-  return { success: true, message: 'Coding locked; interview is starting' };
+  return { success: true, message: noSubmission ? 'Coding locked; no code submitted' : 'Coding locked; interview is starting' };
 };
 
 const onBattleTimeUp = async (battleId) => {
@@ -714,15 +737,16 @@ const finishPlayer = async (battleId, userId, submission) => {
   if (!submission) return endCoding(battleId, userId, 'locked');
   const { language, code } = submission;
   if (typeof code !== 'string' || code.length > 20000 || !['javascript', 'python', 'cpp', 'java'].includes(language)) return { success: false, message: 'Invalid language or code' };
-  const claimed = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', endsAt: { $gt: new Date() }, players: { $elemMatch: { user: userId, phase: 'coding', finishing: { $ne: true } } } }, { $set: { 'players.$.finishing': true, 'players.$.finalCode': code, 'players.$.language': language, 'players.$.codeUpdatedAt': new Date() } });
+  const problem = await Problem.findById(battle.problem).select('+hiddenTestCases');
+  const noSubmission = isNoSubmission(problem, language, code);
+  const claimed = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', endsAt: { $gt: new Date() }, players: { $elemMatch: { user: userId, phase: 'coding', finishing: { $ne: true } } } }, { $set: { 'players.$.finishing': true, 'players.$.finalCode': noSubmission ? '' : code, 'players.$.language': language, 'players.$.codeUpdatedAt': new Date() } });
   if (!claimed) return { success: false, message: 'Coding is locked' };
   try {
-    const problem = await Problem.findById(battle.problem).select('+hiddenTestCases');
-    const { result, myTests, runtimeMs } = await evaluateCode(problem, language, code);
-    await Submission.create({ user: userId, problem: problem._id, battle: battleId, language, code, status: result.status, error: result.error || '', testResults: myTests.map((test) => ({ passed: test.passed, timeMs: test.timeMs, output: test.actual || '', expected: test.expected || '' })), passedCount: result.passedCount, totalCount: result.totalCount, executionTimeMs: runtimeMs });
+    const { result, myTests, runtimeMs } = await evaluateCode(problem, language, noSubmission ? '' : code);
+    if (!noSubmission) await Submission.create({ user: userId, problem: problem._id, battle: battleId, language, code, status: result.status, error: result.error || '', testResults: myTests.map((test) => ({ passed: test.passed, timeMs: test.timeMs, output: test.actual || '', expected: test.expected || '' })), passedCount: result.passedCount, totalCount: result.totalCount, executionTimeMs: runtimeMs });
     const now = new Date();
     const solved = result.totalCount > 0 && result.passedCount === result.totalCount && result.status === 'accepted';
-    const fresh = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', endsAt: { $gt: now }, players: { $elemMatch: { user: userId, phase: 'coding', finishing: true } } }, { $set: { 'players.$.finishing': solved, 'players.$.bestPassed': result.passedCount, 'players.$.totalTests': result.totalCount, 'players.$.runtimeMs': runtimeMs, 'players.$.myTests': myTests, 'players.$.solvedAt': solved ? now : null, 'players.$.lastSubmissionAt': now, 'players.$.resultSource': 'submit' }, $push: { timeline: { user: userId, passedCount: result.passedCount, totalCount: result.totalCount, at: now } } }, { new: true });
+    const fresh = await Battle.findOneAndUpdate({ _id: battleId, status: 'active', endsAt: { $gt: now }, players: { $elemMatch: { user: userId, phase: 'coding', finishing: true } } }, { $set: { 'players.$.finishing': solved, 'players.$.bestPassed': result.passedCount, 'players.$.totalTests': result.totalCount, 'players.$.runtimeMs': runtimeMs, 'players.$.myTests': myTests, 'players.$.solvedAt': solved ? now : null, 'players.$.lastSubmissionAt': now, 'players.$.resultSource': noSubmission ? 'none' : 'submit' }, $push: { timeline: { user: userId, passedCount: result.passedCount, totalCount: result.totalCount, at: now } } }, { new: true });
     if (!fresh) { onBattleTimeUp(battleId).catch(() => {}); return { success: false, message: 'Coding deadline reached' }; }
     const progress = { status: result.status, passedCount: result.passedCount, totalCount: result.totalCount, timeMs: runtimeMs };
     ioInstance?.to(`user:${userId}`).emit('submission_result', progress);
@@ -756,7 +780,13 @@ const finishBattle = async (battleId, winnerId, reason = 'time', recover = false
     const interviews = await Interview.find({ battle: battleId });
     for (const player of battle.players) {
       const record = interviews.find((item) => getUserId(item.user) === getUserId(player.user));
-      player.interview = record ? interviewService.summary(record) : { status: 'failed', score: null };
+      const noSubmission = isNoSubmission(battle.problem, player.language, player.finalCode);
+      if (noSubmission) Object.assign(player, noSubmissionFields());
+      player.interview = record && !noSubmission ? {
+        ...interviewService.summary(record),
+        gradeSource: record.gradeSource,
+        heuristicScore: record.heuristicScore ?? heuristicGrade(record.questions, record.total, player.finalCode, player.language).score,
+      } : { status: 'skipped', score: 0, gradeSource: 'heuristic', heuristicScore: 0 };
       player.phase = 'done';
       player.finishing = false;
       if (!player.finishedAt) { player.finishedAt = new Date(); player.finishedBy = 'forfeit'; }
@@ -1140,7 +1170,7 @@ const initBattleEngine = async (io) => {
   const stuck = await Battle.find({ status: 'finalizing' });
   for (const battle of stuck) await finishBattle(battle._id, null, 'time', true).catch(() => {});
   await Battle.updateMany({ status: 'active' }, { $set: { 'players.$[].finishing': false } });
-  const activeBattles = await Battle.find({ status: 'active' }).select('+players.finalCode');
+  const activeBattles = await Battle.find({ status: 'active' }).select('+players.finalCode').populate('problem');
   for (const battle of activeBattles) {
     for (const player of battle.players) {
       if (player.finishedAt && player.phase === 'coding') {
@@ -1148,7 +1178,11 @@ const initBattleEngine = async (io) => {
         player.phase = 'interview';
       }
       if (player.phase !== 'coding') {
-        const interview = await interviewService.ensureInterview(battle._id, player);
+        if (isNoSubmission(battle.problem, player.language, player.finalCode)) {
+          await processPlayer(battle._id, getUserId(player.user));
+          continue;
+        }
+        const interview = await interviewService.ensureInterview(battle._id, player, battle.problem);
         if (['done', 'failed', 'skipped'].includes(interview.status)) await interviewService.notifyDone(interview);
         if (!player.codingProcessedAt) processPlayer(battle._id, getUserId(player.user)).catch(() => {});
       }
@@ -1193,6 +1227,7 @@ module.exports = {
   finishPlayer,
   saveDraft,
   getArenaStats,
+  cleanProblem,
   formatBattleState,
   formatBattleEndShape,
   headToHead,

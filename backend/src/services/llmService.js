@@ -3,8 +3,8 @@ const callLLM = async ({ system, user, maxTokens = 700, temperature = 0, purpose
     if (purpose === 'interview_question') {
       const context = JSON.parse(user);
       const { codeQuestion } = require('./interviewQuestions');
-      const entry = codeQuestion(context.code, context.history.length, context.history);
-      return JSON.stringify({ ...entry, evidence: context.code.split('\n').find((line) => line.trim().length >= 3)?.trim() || context.code });
+      const entry = codeQuestion(context.code, context.history.length, [...context.history, ...context.opponentQuestions.map((text) => ({ text }))], { userId: context.playerId, seat: context.seat, language: context.language });
+      return JSON.stringify(entry || null);
     }
     if (purpose === 'interview_score') {
       const context = JSON.parse(user);

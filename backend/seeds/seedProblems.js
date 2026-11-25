@@ -1,6 +1,6 @@
-require('dotenv').config({ path: __dirname + '/../.env' });
 const mongoose = require('mongoose');
 const Problem = require('../src/models/Problem');
+const { starterCodeFor } = require('../src/services/starterCode');
 
 const problems = [
   {
@@ -54,98 +54,7 @@ You may assume that each input would have **exactly one solution**, and you may 
         expectedOutput: '2 3',
       },
     ],
-    starterCode: {
-      python: `import sys
-
-def solve():
-    tokens = sys.stdin.read().split()
-    if not tokens:
-        return
-    n = int(tokens[0])
-    target = int(tokens[1])
-    nums = [int(x) for x in tokens[2:2 + n]]
-    
-    seen = {}
-    for i, num in enumerate(nums):
-        diff = target - num
-        if diff in seen:
-            print(f"{seen[diff]} {i}")
-            return
-        seen[num] = i
-
-if __name__ == '__main__':
-    solve()
-`,
-      javascript: `const fs = require('fs');
-
-function solve() {
-  const input = fs.readFileSync(0, 'utf-8').trim().split(/\\s+/);
-  if (!input || input.length < 2 || input[0] === '') return;
-  const n = parseInt(input[0], 10);
-  const target = parseInt(input[1], 10);
-  const nums = input.slice(2, 2 + n).map(Number);
-
-  const seen = new Map();
-  for (let i = 0; i < nums.length; i++) {
-    const diff = target - nums[i];
-    if (seen.has(diff)) {
-      console.log(\`\${seen.get(diff)} \${i}\`);
-      return;
-    }
-    seen.set(nums[i], i);
-  }
-}
-
-solve();
-`,
-      cpp: `#include <iostream>
-#include <vector>
-#include <unordered_map>
-
-using namespace std;
-
-int main() {
-    int n;
-    long long target;
-    if (!(cin >> n >> target)) return 0;
-    vector<long long> nums(n);
-    unordered_map<long long, int> seen;
-    for (int i = 0; i < n; i++) {
-        cin >> nums[i];
-        long long diff = target - nums[i];
-        if (seen.count(diff)) {
-            cout << seen[diff] << " " << i << endl;
-            return 0;
-        }
-        seen[nums[i]] = i;
-    }
-    return 0;
-}
-`,
-      java: `// Note: File must be Main.java with class Main
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        if (!scanner.hasNextInt()) return;
-        int n = scanner.nextInt();
-        long target = scanner.nextLong();
-        long[] nums = new long[n];
-        Map<Long, Integer> seen = new HashMap<>();
-        for (int i = 0; i < n; i++) {
-            nums[i] = scanner.nextLong();
-            long diff = target - nums[i];
-            if (seen.containsKey(diff)) {
-                System.out.println(seen.get(diff) + " " + i);
-                return;
-            }
-            seen.put(nums[i], i);
-        }
-    }
-}
-`,
-    },
+    starterCode: starterCodeFor('two-sum'),
   },
   {
     title: 'Reverse String',
@@ -195,53 +104,7 @@ Write a program that takes a string \`s\` as input and prints the string in reve
         expectedOutput: 'ciporhtnA elgooG IAnepO',
       },
     ],
-    starterCode: {
-      python: `import sys
-
-def solve():
-    s = sys.stdin.read().rstrip('\\r\\n')
-    print(s[::-1])
-
-if __name__ == '__main__':
-    solve()
-`,
-      javascript: `const fs = require('fs');
-
-function solve() {
-  const input = fs.readFileSync(0, 'utf-8').replace(/\\r?\\n$/, '');
-  console.log(input.split('').reverse().join(''));
-}
-
-solve();
-`,
-      cpp: `#include <iostream>
-#include <string>
-#include <algorithm>
-
-using namespace std;
-
-int main() {
-    string s;
-    if (!getline(cin, s)) return 0;
-    reverse(s.begin(), s.end());
-    cout << s << endl;
-    return 0;
-}
-`,
-      java: `// Note: File must be Main.java with class Main
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        if (!scanner.hasNextLine()) return;
-        String s = scanner.nextLine();
-        StringBuilder sb = new StringBuilder(s);
-        System.out.println(sb.reverse().toString());
-    }
-}
-`,
-    },
+    starterCode: starterCodeFor('reverse-string'),
   },
   {
     title: 'FizzBuzz',
@@ -295,82 +158,7 @@ Given an integer \`n\`, print the numbers from 1 to \`n\`, one per line, accordi
         expectedOutput: '1\n2\nFizz\n4\nBuzz\nFizz',
       },
     ],
-    starterCode: {
-      python: `import sys
-
-def solve():
-    tokens = sys.stdin.read().split()
-    if not tokens:
-        return
-    n = int(tokens[0])
-    for i in range(1, n + 1):
-        if i % 15 == 0:
-            print("FizzBuzz")
-        elif i % 3 == 0:
-            print("Fizz")
-        elif i % 5 == 0:
-            print("Buzz")
-        else:
-            print(i)
-
-if __name__ == '__main__':
-    solve()
-`,
-      javascript: `const fs = require('fs');
-
-function solve() {
-  const input = fs.readFileSync(0, 'utf-8').trim();
-  if (!input) return;
-  const n = parseInt(input, 10);
-  for (let i = 1; i <= n; i++) {
-    if (i % 15 === 0) {
-      console.log('FizzBuzz');
-    } else if (i % 3 === 0) {
-      console.log('Fizz');
-    } else if (i % 5 === 0) {
-      console.log('Buzz');
-    } else {
-      console.log(i);
-    }
-  }
-}
-
-solve();
-`,
-      cpp: `#include <iostream>
-
-using namespace std;
-
-int main() {
-    int n;
-    if (!(cin >> n)) return 0;
-    for (int i = 1; i <= n; i++) {
-        if (i % 15 == 0) cout << "FizzBuzz\n";
-        else if (i % 3 == 0) cout << "Fizz\n";
-        else if (i % 5 == 0) cout << "Buzz\n";
-        else cout << i << "\n";
-    }
-    return 0;
-}
-`,
-      java: `// Note: File must be Main.java with class Main
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        if (!scanner.hasNextInt()) return;
-        int n = scanner.nextInt();
-        for (int i = 1; i <= n; i++) {
-            if (i % 15 == 0) System.out.println("FizzBuzz");
-            else if (i % 3 == 0) System.out.println("Fizz");
-            else if (i % 5 == 0) System.out.println("Buzz");
-            else System.out.println(i);
-        }
-    }
-}
-`,
-    },
+    starterCode: starterCodeFor('fizzbuzz'),
   },
   {
     title: 'Palindrome Check',
@@ -422,81 +210,7 @@ Given a string \`s\`, print \`true\` if it is a palindrome, or \`false\` otherwi
         expectedOutput: 'true',
       },
     ],
-    starterCode: {
-      python: `import sys
-
-def solve():
-    s = sys.stdin.read().rstrip('\\r\\n')
-    filtered = [ch.lower() for ch in s if ch.isalnum()]
-    if filtered == filtered[::-1]:
-        print("true")
-    else:
-        print("false")
-
-if __name__ == '__main__':
-    solve()
-`,
-      javascript: `const fs = require('fs');
-
-function solve() {
-  const input = fs.readFileSync(0, 'utf-8').replace(/\\r?\\n$/, '');
-  const clean = input.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const rev = clean.split('').reverse().join('');
-  console.log(clean === rev ? 'true' : 'false');
-}
-
-solve();
-`,
-      cpp: `#include <iostream>
-#include <string>
-#include <cctype>
-
-using namespace std;
-
-int main() {
-    string s;
-    if (!getline(cin, s)) return 0;
-    string clean = "";
-    for (char c : s) {
-        if (isalnum(c)) {
-            clean += tolower(c);
-        }
-    }
-    int l = 0, r = clean.length() - 1;
-    bool isPal = true;
-    while (l < r) {
-        if (clean[l] != clean[r]) {
-            isPal = false;
-            break;
-        }
-        l++;
-        r--;
-    }
-    cout << (isPal ? "true" : "false") << endl;
-    return 0;
-}
-`,
-      java: `// Note: File must be Main.java with class Main
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        if (!scanner.hasNextLine()) return;
-        String s = scanner.nextLine();
-        StringBuilder sb = new StringBuilder();
-        for (char c : s.toCharArray()) {
-            if (Character.isLetterOrDigit(c)) {
-                sb.append(Character.toLowerCase(c));
-            }
-        }
-        String clean = sb.toString();
-        String rev = sb.reverse().toString();
-        System.out.println(clean.equals(rev) ? "true" : "false");
-    }
-}
-`,
-    },
+    starterCode: starterCodeFor('palindrome-check'),
   },
   {
     title: 'Valid Parentheses',
@@ -551,106 +265,7 @@ An input string is valid if:
         expectedOutput: 'false',
       },
     ],
-    starterCode: {
-      python: `import sys
-
-def solve():
-    s = sys.stdin.read().strip()
-    stack = []
-    mapping = {')': '(', '}': '{', ']': '['}
-    for ch in s:
-        if ch in mapping:
-            top = stack.pop() if stack else '#'
-            if mapping[ch] != top:
-                print("false")
-                return
-        else:
-            stack.append(ch)
-    print("true" if not stack else "false")
-
-if __name__ == '__main__':
-    solve()
-`,
-      javascript: `const fs = require('fs');
-
-function solve() {
-  const s = fs.readFileSync(0, 'utf-8').trim();
-  const stack = [];
-  const map = { ')': '(', '}': '{', ']': '[' };
-
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (map[ch]) {
-      const top = stack.length > 0 ? stack.pop() : '#';
-      if (top !== map[ch]) {
-        console.log('false');
-        return;
-      }
-    } else {
-      stack.push(ch);
-    }
-  }
-  console.log(stack.length === 0 ? 'true' : 'false');
-}
-
-solve();
-`,
-      cpp: `#include <iostream>
-#include <string>
-#include <stack>
-#include <unordered_map>
-
-using namespace std;
-
-int main() {
-    string s;
-    if (!(cin >> s)) return 0;
-    stack<char> st;
-    unordered_map<char, char> m = {{')', '('}, {'}', '{'}, {']', '['}};
-    for (char c : s) {
-        if (m.count(c)) {
-            if (st.empty() || st.top() != m[c]) {
-                cout << "false" << endl;
-                return 0;
-            }
-            st.pop();
-        } else {
-            st.push(c);
-        }
-    }
-    cout << (st.empty() ? "true" : "false") << endl;
-    return 0;
-}
-`,
-      java: `// Note: File must be Main.java with class Main
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        if (!scanner.hasNext()) return;
-        String s = scanner.next();
-        Stack<Character> stack = new Stack<>();
-        Map<Character, Character> map = new HashMap<>();
-        map.put(')', '(');
-        map.put('}', '{');
-        map.put(']', '[');
-
-        for (char c : s.toCharArray()) {
-            if (map.containsKey(c)) {
-                if (stack.isEmpty() || stack.pop() != map.get(c)) {
-                    System.out.println("false");
-                    return;
-                }
-            } else {
-                stack.push(c);
-            }
-        }
-        System.out.println(stack.isEmpty() ? "true" : "false");
-    }
-}
-`,
-    },
+    starterCode: starterCodeFor('valid-parentheses'),
   },
   {
     title: 'Maximum Subarray',
@@ -703,91 +318,7 @@ A subarray is a contiguous non-empty sequence of elements within an array.
         expectedOutput: '11',
       },
     ],
-    starterCode: {
-      python: `import sys
-
-def solve():
-    tokens = sys.stdin.read().split()
-    if not tokens:
-        return
-    n = int(tokens[0])
-    nums = [int(x) for x in tokens[1:1 + n]]
-    
-    max_sum = nums[0]
-    curr_sum = nums[0]
-    for x in nums[1:]:
-        curr_sum = max(x, curr_sum + x)
-        max_sum = max(max_sum, curr_sum)
-    print(max_sum)
-
-if __name__ == '__main__':
-    solve()
-`,
-      javascript: `const fs = require('fs');
-
-function solve() {
-  const tokens = fs.readFileSync(0, 'utf-8').trim().split(/\\s+/);
-  if (!tokens || tokens.length < 2 || tokens[0] === '') return;
-  const n = parseInt(tokens[0], 10);
-  const nums = tokens.slice(1, 1 + n).map(Number);
-
-  let maxSum = nums[0];
-  let currSum = nums[0];
-  for (let i = 1; i < nums.length; i++) {
-    currSum = Math.max(nums[i], currSum + nums[i]);
-    maxSum = Math.max(maxSum, currSum);
-  }
-  console.log(maxSum);
-}
-
-solve();
-`,
-      cpp: `#include <iostream>
-#include <vector>
-#include <algorithm>
-
-using namespace std;
-
-int main() {
-    int n;
-    if (!(cin >> n)) return 0;
-    vector<long long> nums(n);
-    for (int i = 0; i < n; i++) {
-        cin >> nums[i];
-    }
-    long long maxSum = nums[0];
-    long long currSum = nums[0];
-    for (int i = 1; i < n; i++) {
-        currSum = max(nums[i], currSum + nums[i]);
-        maxSum = max(maxSum, currSum);
-    }
-    cout << maxSum << endl;
-    return 0;
-}
-`,
-      java: `// Note: File must be Main.java with class Main
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        if (!scanner.hasNextInt()) return;
-        int n = scanner.nextInt();
-        long[] nums = new long[n];
-        for (int i = 0; i < n; i++) {
-            nums[i] = scanner.nextLong();
-        }
-        long maxSum = nums[0];
-        long currSum = nums[0];
-        for (int i = 1; i < n; i++) {
-            currSum = Math.max(nums[i], currSum + nums[i]);
-            maxSum = Math.max(maxSum, currSum);
-        }
-        System.out.println(maxSum);
-    }
-}
-`,
-    },
+    starterCode: starterCodeFor('maximum-subarray'),
   },
   {
     title: 'Merge Two Sorted Arrays',
@@ -839,132 +370,7 @@ You are given two integer arrays \`nums1\` and \`nums2\`, sorted in non-decreasi
         expectedOutput: '5 10 20 25 30 35 40 50',
       },
     ],
-    starterCode: {
-      python: `import sys
-
-def solve():
-    tokens = sys.stdin.read().split()
-    if not tokens:
-        return
-    n = int(tokens[0])
-    m = int(tokens[1])
-    a = [int(x) for x in tokens[2:2 + n]]
-    b = [int(x) for x in tokens[2 + n:2 + n + m]]
-
-    i, j = 0, 0
-    res = []
-    while i < n and j < m:
-        if a[i] <= b[j]:
-            res.append(str(a[i]))
-            i += 1
-        else:
-            res.append(str(b[j]))
-            j += 1
-    while i < n:
-        res.append(str(a[i]))
-        i += 1
-    while j < m:
-        res.append(str(b[j]))
-        j += 1
-    print(' '.join(res))
-
-if __name__ == '__main__':
-    solve()
-`,
-      javascript: `const fs = require('fs');
-
-function solve() {
-  const tokens = fs.readFileSync(0, 'utf-8').trim().split(/\\s+/);
-  if (!tokens || tokens.length < 2 || tokens[0] === '') return;
-  const n = parseInt(tokens[0], 10);
-  const m = parseInt(tokens[1], 10);
-  const a = tokens.slice(2, 2 + n).map(Number);
-  const b = tokens.slice(2 + n, 2 + n + m).map(Number);
-
-  let i = 0;
-  let j = 0;
-  const res = [];
-  while (i < n && j < m) {
-    if (a[i] <= b[j]) {
-      res.push(a[i++]);
-    } else {
-      res.push(b[j++]);
-    }
-  }
-  while (i < n) res.push(a[i++]);
-  while (j < m) res.push(b[j++]);
-  console.log(res.join(' '));
-}
-
-solve();
-`,
-      cpp: `#include <iostream>
-#include <vector>
-
-using namespace std;
-
-int main() {
-    int n, m;
-    if (!(cin >> n >> m)) return 0;
-    vector<long long> a(n), b(m);
-    for (int i = 0; i < n; i++) cin >> a[i];
-    for (int i = 0; i < m; i++) cin >> b[i];
-
-    int i = 0, j = 0;
-    bool first = true;
-    while (i < n && j < m) {
-        if (!first) cout << " ";
-        if (a[i] <= b[j]) {
-            cout << a[i++];
-        } else {
-            cout << b[j++];
-        }
-        first = false;
-    }
-    while (i < n) {
-        if (!first) cout << " ";
-        cout << a[i++];
-        first = false;
-    }
-    while (j < m) {
-        if (!first) cout << " ";
-        cout << b[j++];
-        first = false;
-    }
-    cout << endl;
-    return 0;
-}
-`,
-      java: `// Note: File must be Main.java with class Main
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        if (!scanner.hasNextInt()) return;
-        int n = scanner.nextInt();
-        int m = scanner.nextInt();
-        long[] a = new long[n];
-        long[] b = new long[m];
-        for (int i = 0; i < n; i++) a[i] = scanner.nextLong();
-        for (int i = 0; i < m; i++) b[i] = scanner.nextLong();
-
-        int i = 0, j = 0;
-        StringBuilder sb = new StringBuilder();
-        while (i < n && j < m) {
-            if (a[i] <= b[j]) {
-                sb.append(a[i++]).append(" ");
-            } else {
-                sb.append(b[j++]).append(" ");
-            }
-        }
-        while (i < n) sb.append(a[i++]).append(" ");
-        while (j < m) sb.append(b[j++]).append(" ");
-        System.out.println(sb.toString().trim());
-    }
-}
-`,
-    },
+    starterCode: starterCodeFor('merge-two-sorted-arrays'),
   },
   {
     title: 'Longest Substring Without Repeating Characters',
@@ -1014,100 +420,13 @@ Given a string \`s\`, find the length of the **longest substring** without repea
         expectedOutput: '3',
       },
     ],
-    starterCode: {
-      python: `import sys
-
-def solve():
-    s = sys.stdin.read().rstrip('\\r\\n')
-    last_idx = {}
-    max_len = 0
-    start = 0
-    for i, ch in enumerate(s):
-        if ch in last_idx and last_idx[ch] >= start:
-            start = last_idx[ch] + 1
-        last_idx[ch] = i
-        max_len = max(max_len, i - start + 1)
-    print(max_len)
-
-if __name__ == '__main__':
-    solve()
-`,
-      javascript: `const fs = require('fs');
-
-function solve() {
-  const s = fs.readFileSync(0, 'utf-8').replace(/\\r?\\n$/, '');
-  const lastIdx = new Map();
-  let maxLen = 0;
-  let start = 0;
-
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (lastIdx.has(ch) && lastIdx.get(ch) >= start) {
-      start = lastIdx.get(ch) + 1;
-    }
-    lastIdx.set(ch, i);
-    maxLen = Math.max(maxLen, i - start + 1);
-  }
-  console.log(maxLen);
-}
-
-solve();
-`,
-      cpp: `#include <iostream>
-#include <string>
-#include <vector>
-#include <algorithm>
-
-using namespace std;
-
-int main() {
-    string s;
-    if (!getline(cin, s)) {
-        cout << 0 << endl;
-        return 0;
-    }
-    vector<int> last(256, -1);
-    int maxLen = 0, start = 0;
-    for (int i = 0; i < (int)s.length(); i++) {
-        unsigned char c = s[i];
-        if (last[c] >= start) {
-            start = last[c] + 1;
-        }
-        last[c] = i;
-        maxLen = max(maxLen, i - start + 1);
-    }
-    cout << maxLen << endl;
-    return 0;
-}
-`,
-      java: `// Note: File must be Main.java with class Main
-import java.util.*;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String s = scanner.hasNextLine() ? scanner.nextLine() : "";
-        Map<Character, Integer> lastIdx = new HashMap<>();
-        int maxLen = 0;
-        int start = 0;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (lastIdx.containsKey(c) && lastIdx.get(c) >= start) {
-                start = lastIdx.get(c) + 1;
-            }
-            lastIdx.put(c, i);
-            maxLen = Math.max(maxLen, i - start + 1);
-        }
-        System.out.println(maxLen);
-    }
-}
-`,
-    },
+    starterCode: starterCodeFor('longest-substring-without-repeating-characters'),
   },
 ];
 
 const seedDB = async () => {
   try {
+    require('dotenv').config({ path: __dirname + '/../.env' });
     const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/codingarena';
     await mongoose.connect(mongoUri);
 
@@ -1131,4 +450,6 @@ const seedDB = async () => {
   }
 };
 
-seedDB();
+if (require.main === module) seedDB();
+
+module.exports = { problems };

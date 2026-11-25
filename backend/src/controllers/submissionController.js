@@ -1,7 +1,12 @@
 const Problem = require('../models/Problem');
 const Submission = require('../models/Submission');
 const User = require('../models/User');
+const { isLegacySolved } = require('../services/starterCode');
 const { runSubmission } = require('../services/codeRunnerService');
+
+const publicSubmission = (submission) => isLegacySolved(submission.code, submission.language)
+  ? { ...submission.toObject(), code: '' }
+  : submission;
 
 const XP_MAP = {
   easy: 10,
@@ -146,7 +151,7 @@ const submitCode = async (req, res) => {
     return res.status(201).json({
       success: true,
       data: {
-        submission,
+        submission: publicSubmission(submission),
       },
     });
   } catch (err) {
@@ -181,7 +186,7 @@ const getMySubmissions = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        submissions,
+        submissions: submissions.map(publicSubmission),
         total,
         page,
         limit,
@@ -207,7 +212,7 @@ const getSubmissionById = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        submission,
+        submission: publicSubmission(submission),
       },
     });
   } catch (err) {

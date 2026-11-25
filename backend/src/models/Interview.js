@@ -4,6 +4,8 @@ const questionSchema = new mongoose.Schema({
   index: { type: Number, required: true },
   text: { type: String, required: true },
   focus: String,
+  evidence: String,
+  type: String,
   askedAt: Date,
   deadlineAt: Date,
   answer: { type: String, default: '', maxlength: 2000 },
@@ -25,6 +27,9 @@ const interviewSchema = new mongoose.Schema({
   questions: [questionSchema],
   understanding: { type: Number, default: 0 },
   score: { type: Number, default: null },
+  gradeSource: { type: String, enum: ['llm', 'heuristic'] },
+  heuristicScore: Number,
+  questionKeys: { type: [String], default: undefined },
   feedback: { strengths: [String], tips: [String] },
   source: { type: String, enum: ['llm', 'fallback'], default: 'llm' },
   generating: { type: Boolean, default: false },
@@ -34,6 +39,8 @@ const interviewSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 interviewSchema.index({ battle: 1, user: 1 }, { unique: true });
+// An atomic backstop for two workers choosing a question from the same sibling snapshot.
+interviewSchema.index({ battle: 1, questionKeys: 1 }, { unique: true, partialFilterExpression: { questionKeys: { $exists: true } } });
 interviewSchema.index({ status: 1, deadlineAt: 1 });
 
 module.exports = mongoose.model('Interview', interviewSchema);

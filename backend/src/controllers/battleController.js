@@ -5,11 +5,12 @@ const { finishPlayer, formatBattleState, formatBattleEndShape } = require('../se
 const submitBattleCode = async (req, res) => {
   try {
     const { language, code } = req.body;
-    if (!language || typeof code !== 'string' || !code || code.length > 20000) return res.status(400).json({ message: 'Language and code (maximum 20000 characters) are required' });
+    if (!language || typeof code !== 'string' || code.length > 20000) return res.status(400).json({ message: 'Language and code (maximum 20000 characters) are required' });
     const key = `ratelimit:submission:${req.user._id}`;
     const count = await redis.incr(key);
     if (count === 1) await redis.expire(key, 60);
     if (count > 10) return res.status(429).json({ message: 'Maximum 10 submissions per minute' });
+    // The service checks the exact starter against this battle's problem before evaluation.
     const result = await finishPlayer(req.params.id, req.user._id, { language, code });
     if (!result.success) return res.status(400).json({ message: result.message });
     return res.json({ success: true, data: result.data });
